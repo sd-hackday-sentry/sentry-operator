@@ -113,11 +113,13 @@ func (r *ReconcileSentryOperator) Reconcile(request reconcile.Request) (reconcil
 		return reconcile.Result{}, err
 	}
 
+	requeue := false
 	for _, depName := range allDeployments {
 		// Check if the deployment already exists, if not create a new one
 		found := &appsv1.Deployment{}
 		err = r.client.Get(context.TODO(), types.NamespacedName{Name: depName, Namespace: sentry.Namespace}, found)
 		if err != nil && errors.IsNotFound(err) {
+			requeue = true
 			// Define a new deployment
 			var dep *appsv1.Deployment
 			switch {
@@ -142,7 +144,7 @@ func (r *ReconcileSentryOperator) Reconcile(request reconcile.Request) (reconcil
 		}
 	}
 
-	return reconcile.Result{}, nil
+	return reconcile.Result{Requeue: requeue}, nil
 }
 
 func (r *ReconcileSentryOperator) deploymentForSentryWebUI(m *sentryoperatorv1.Sentry) *appsv1.Deployment {
