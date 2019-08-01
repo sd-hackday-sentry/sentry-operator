@@ -173,53 +173,45 @@ func (r *ReconcileSentry) deploymentForSentryWebUI(m *sentryv1.Sentry) *appsv1.D
 							Name:          name,
 						}},
 						Env: []corev1.EnvVar{
-							corev1.EnvVar{
-								Name:  "SENTRY_POSTGRES_HOST",
-								Value: "db", // TODO get from config
-							},
-							corev1.EnvVar{
+							{
 								Name:  "SENTRY_SECRET_KEY",
-								Value: "my_secret_here_some_random_hash", // TODO get from config
+								Value: "my_secret_here_some_random_hash", // TODO get from config or generate
 							},
-							corev1.EnvVar{
+							{
+								Name:  "SENTRY_POSTGRES_HOST",
+								Value: m.Spec.Postgreshost,
+							},
+							{
+								Name:  "SENTRY_POSTGRES_PORT",
+								Value: string(m.Spec.Postgresport),
+							},
+							{
+								Name:  "SENTRY_DB_NAME",
+								Value: m.Spec.Postgresname,
+							},
+							{
 								Name:  "SENTRY_DB_USER",
-								Value: "my_user", // TODO get from config
+								Value: m.Spec.Postgresuser,
 							},
-							corev1.EnvVar{
+							{
 								Name:  "SENTRY_DB_PASSWORD",
-								Value: "my_password", // TODO get from config
+								Value: m.Spec.Postgrespassword,
 							},
-							corev1.EnvVar{
+							{
 								Name:  "SENTRY_REDIS_HOST",
-								Value: "my_ip", // TODO get from config
+								Value: m.Spec.Redishost,
 							},
-							corev1.EnvVar{
+							{
+								Name:  "SENTRY_REDIS_PORT",
+								Value: string(m.Spec.Redisport),
+							},
+							{
+								Name:  "SENTRY_REDIS_DB",
+								Value: m.Spec.Redisname,
+							},
+							{
 								Name:  "SENTRY_USE_SSL",
-								Value: "true", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_EMAIL_HOST",
-								Value: "smtp.example.com", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_SERVER_EMAIL",
-								Value: "noreply@example.com", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_FILE_ACCESS",
-								Value: "minio", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_FILE_BUCKET",
-								Value: "sentry", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_FILE_HOST",
-								Value: "'http://minio:9000'", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_FILE_SECRET",
-								Value: "minio123", // TODO get from config
+								Value: "true", // TODO get from config?
 							},
 						},
 						ImagePullPolicy: corev1.PullAlways,
@@ -263,53 +255,45 @@ func (r *ReconcileSentry) deploymentForSentryWorker(m *sentryv1.Sentry) *appsv1.
 							Name:          name,
 						}},
 						Env: []corev1.EnvVar{
-							corev1.EnvVar{
-								Name:  "SENTRY_POSTGRES_HOST",
-								Value: "db", // TODO get from config
-							},
-							corev1.EnvVar{
+							{
 								Name:  "SENTRY_SECRET_KEY",
-								Value: "my_secret_here_some_random_hash", // TODO get from config
+								Value: "my_secret_here_some_random_hash", // TODO get from config or generate
 							},
-							corev1.EnvVar{
+							{
+								Name:  "SENTRY_POSTGRES_HOST",
+								Value: m.Spec.Postgreshost,
+							},
+							{
+								Name:  "SENTRY_POSTGRES_PORT",
+								Value: string(m.Spec.Postgresport),
+							},
+							{
+								Name:  "SENTRY_DB_NAME",
+								Value: m.Spec.Postgresname,
+							},
+							{
+								Name:  "SENTRY_DB_USER",
+								Value: m.Spec.Postgresuser,
+							},
+							{
+								Name:  "SENTRY_DB_PASSWORD",
+								Value: m.Spec.Postgrespassword,
+							},
+							{
+								Name:  "SENTRY_REDIS_HOST",
+								Value: m.Spec.Redishost,
+							},
+							{
+								Name:  "SENTRY_REDIS_PORT",
+								Value: string(m.Spec.Redisport),
+							},
+							{
+								Name:  "SENTRY_REDIS_DB",
+								Value: m.Spec.Redisname,
+							},
+							{
 								Name:  "C_FORCE_ROOT",
 								Value: "true", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_DB_USER",
-								Value: "my_user", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_DB_PASSWORD",
-								Value: "my_password", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_SERVER_EMAIL",
-								Value: "noreply@example.com", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_FILE_ACCESS",
-								Value: "minio", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_FILE_BUCKET",
-								Value: "sentry", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_FILE_HOST",
-								Value: "'http://minio:9000'", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_FILE_SECRET",
-								Value: "minio123", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_EMAIL_HOST",
-								Value: "smtp.example.com", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_REDIS_HOST",
-								Value: "my_ip", // TODO get from config
 							},
 						},
 						ImagePullPolicy: corev1.PullAlways,
@@ -353,45 +337,45 @@ func (r *ReconcileSentry) deploymentForSentryCron(m *sentryv1.Sentry) *appsv1.De
 							Name:          name,
 						}},
 						Env: []corev1.EnvVar{
-							corev1.EnvVar{
-								Name:  "SENTRY_POSTGRES_HOST",
-								Value: "db", // TODO get from config
-							},
-							corev1.EnvVar{
+							{
 								Name:  "SENTRY_SECRET_KEY",
-								Value: "my_secret_here_some_random_hash", // TODO get from config
+								Value: "my_secret_here_some_random_hash", // TODO get from config or generate
 							},
-							corev1.EnvVar{
+							{
+								Name:  "SENTRY_POSTGRES_HOST",
+								Value: m.Spec.Postgreshost,
+							},
+							{
+								Name:  "SENTRY_POSTGRES_PORT",
+								Value: string(m.Spec.Postgresport),
+							},
+							{
+								Name:  "SENTRY_DB_NAME",
+								Value: m.Spec.Postgresname,
+							},
+							{
 								Name:  "SENTRY_DB_USER",
-								Value: "my_user",
+								Value: m.Spec.Postgresuser,
 							},
-							corev1.EnvVar{
+							{
 								Name:  "SENTRY_DB_PASSWORD",
-								Value: "my_password", // TODO get from config
+								Value: m.Spec.Postgrespassword,
 							},
-							corev1.EnvVar{
-								Name:  "SENTRY_EMAIL_HOST",
-								Value: "smtp.example.com", // TODO get from config
+							{
+								Name:  "SENTRY_REDIS_HOST",
+								Value: m.Spec.Redishost,
 							},
-							corev1.EnvVar{
-								Name:  "SENTRY_SERVER_EMAIL",
-								Value: "noreply@example.com", // TODO get from config
+							{
+								Name:  "SENTRY_REDIS_PORT",
+								Value: string(m.Spec.Redisport),
 							},
-							corev1.EnvVar{
-								Name:  "SENTRY_FILE_ACCESS",
-								Value: "minio", // TODO get from config
+							{
+								Name:  "SENTRY_REDIS_DB",
+								Value: m.Spec.Redisname,
 							},
-							corev1.EnvVar{
-								Name:  "SENTRY_FILE_BUCKET",
-								Value: "sentry", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_FILE_HOST",
-								Value: "'http://minio:9000'", // TODO get from config
-							},
-							corev1.EnvVar{
-								Name:  "SENTRY_FILE_SECRET",
-								Value: "minio123", // TODO get from config
+							{
+								Name:  "C_FORCE_ROOT",
+								Value: "true", // TODO get from config
 							},
 						},
 						ImagePullPolicy: corev1.PullAlways,
