@@ -1,0 +1,7 @@
+apiVersion: sentry.redhat.com/v1
+kind: Sentry
+metadata:
+  name: example-sentry
+spec:
+  # Add fields here
+  size: 3
