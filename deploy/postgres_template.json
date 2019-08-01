@@ -138,7 +138,7 @@
                                         }
                                     }
                                 ],
-                                "image": " ",
+                                "image": "centos/postgresql-95-centos7",
                                 "imagePullPolicy": "IfNotPresent",
                                 "livenessProbe": {
                                     "exec": {
