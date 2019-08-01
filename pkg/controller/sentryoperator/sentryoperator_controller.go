@@ -22,6 +22,18 @@ import (
 
 var log = logf.Log.WithName("controller_sentryoperator")
 
+const (
+	SENTRY_WEB_UI string = "sentry-web-ui"
+	SENTRY_WORKER string = "sentry-worker"
+	SENTRY_CRON   string = "sentry-cron"
+)
+
+var allDeployments = []string{
+	SENTRY_WEB_UI,
+	SENTRY_WORKER,
+	SENTRY_CRON,
+}
+
 /**
 * USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
 * business logic.  Delete these comments after modifying this file.*
@@ -101,64 +113,40 @@ func (r *ReconcileSentryOperator) Reconcile(request reconcile.Request) (reconcil
 		return reconcile.Result{}, err
 	}
 
-	// Check if the deployment already exists, if not create a new one
-	found := &appsv1.Deployment{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: sentry.Name, Namespace: sentry.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		// Define a new deployment
-		dep := r.newDeployment(sentry)
-		reqLogger.Info("Creating a new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
-		err = r.client.Create(context.TODO(), dep)
-		if err != nil {
-			reqLogger.Error(err, "Failed to create new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+	for _, depName := range allDeployments {
+		// Check if the deployment already exists, if not create a new one
+		found := &appsv1.Deployment{}
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: depName, Namespace: sentry.Namespace}, found)
+		if err != nil && errors.IsNotFound(err) {
+			// Define a new deployment
+			var dep *appsv1.Deployment
+			switch {
+			case depName == SENTRY_WEB_UI:
+				dep = r.deploymentForSentryWebUI(sentry)
+			case depName == SENTRY_WORKER:
+				dep = r.deploymentForSentryWorker(sentry)
+			case depName == SENTRY_CRON:
+				dep = r.deploymentForSentryCron(sentry)
+			}
+			reqLogger.Info("Creating a new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+			err = r.client.Create(context.TODO(), dep)
+			if err != nil {
+				reqLogger.Error(err, "Failed to create new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+				return reconcile.Result{}, err
+			}
+		} else if err != nil {
+			reqLogger.Error(err, "Failed to get Deployment.", "Deployment.Name", depName)
 			return reconcile.Result{}, err
+		} else {
+			reqLogger.Info("Deployment already exists", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
 		}
-		// Deployment created successfully - return and requeue
-		return reconcile.Result{Requeue: true}, nil
-	} else if err != nil {
-		reqLogger.Error(err, "Failed to get Deployment.")
-		return reconcile.Result{}, err
 	}
 
-	reqLogger.Info("Skip reconcile: Deployment already exists", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
 	return reconcile.Result{}, nil
 }
 
-// newDeployment returns a Sentry Deployment object
-func (r *ReconcileSentryOperator) newDeployment(sentry *sentryoperatorv1.SentryOperator) *appsv1.Deployment {
-	dep := &appsv1.Deployment{}
-	// Set Sentry instance as the owner and controller
-	controllerutil.SetControllerReference(sentry, dep, r.scheme)
-	return dep
-}
-
-// newPodForCR returns a busybox pod with the same name/namespace as the cr
-// TODO this shoudl be modified to provide a sentry depoyment
-// we'll probably need one for each deployment in sentry-worker sentry-ui sentry-cron
-func newPodForCR(cr *sentryoperatorv1.SentryOperator) *corev1.Pod {
-	labels := map[string]string{
-		"app": cr.Name,
-	}
-	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-pod",
-			Namespace: cr.Namespace,
-			Labels:    labels,
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:    "busybox",
-					Image:   "busybox",
-					Command: []string{"sleep", "3600"},
-				},
-			},
-		},
-	}
-}
-
 func (r *ReconcileSentryOperator) deploymentForSentryWebUI(m *sentryoperatorv1.Sentry) *appsv1.Deployment {
-	name := "sentry-web-ui"
+	name := SENTRY_WEB_UI
 
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -245,7 +233,7 @@ func (r *ReconcileSentryOperator) deploymentForSentryWebUI(m *sentryoperatorv1.S
 }
 
 func (r *ReconcileSentryOperator) deploymentForSentryWorker(m *sentryoperatorv1.Sentry) *appsv1.Deployment {
-	name := "sentry-worker"
+	name := SENTRY_WORKER
 
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -332,7 +320,7 @@ func (r *ReconcileSentryOperator) deploymentForSentryWorker(m *sentryoperatorv1.
 }
 
 func (r *ReconcileSentryOperator) deploymentForSentryCron(m *sentryoperatorv1.Sentry) *appsv1.Deployment {
-	name := "sentry-cron"
+	name := SENTRY_CRON
 
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
