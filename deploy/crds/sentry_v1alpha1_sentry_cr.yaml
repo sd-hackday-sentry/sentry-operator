@@ -1,4 +1,4 @@
-apiVersion: sentry.redhat.com/v1
+apiVersion: sentry.redhat.com/v1alpha1
 kind: Sentry
 metadata:
   name: example-sentry
