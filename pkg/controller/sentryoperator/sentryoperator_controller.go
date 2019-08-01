@@ -147,19 +147,22 @@ func (r *ReconcileSentryOperator) Reconcile(request reconcile.Request) (reconcil
 	return reconcile.Result{Requeue: requeue}, nil
 }
 
-func (r *ReconcileSentryOperator) deploymentForSentryWebUI(m *sentryoperatorv1.Sentry) *appsv1.Deployment {
+func (r *ReconcileSentryOperator) deploymentForSentryWebUI(m *sentryoperatorv1.SentryOperator) *appsv1.Deployment {
 	name := SENTRY_WEB_UI
+	labels := map[string]string{"app": name}
+	var replicas int32 = 1
+	var terminationGracePeriodSeconds int64 = 30
 
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      m.Name,
+			Name:      name,
 			Namespace: m.Namespace,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: 1,
+			Replicas: &replicas,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: name,
+					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
@@ -192,7 +195,7 @@ func (r *ReconcileSentryOperator) deploymentForSentryWebUI(m *sentryoperatorv1.S
 							},
 							corev1.EnvVar{
 								Name:  "SENTRY_USE_SSL",
-								Value: true, // TODO get from config
+								Value: "true", // TODO get from config
 							},
 							corev1.EnvVar{
 								Name:  "SENTRY_EMAIL_HOST",
@@ -219,11 +222,11 @@ func (r *ReconcileSentryOperator) deploymentForSentryWebUI(m *sentryoperatorv1.S
 								Value: "minio123", // TODO get from config
 							},
 						},
-						PullPolicy: PullAlways,
+						ImagePullPolicy: corev1.PullAlways,
 					}},
-					RestartPolicy:                 RestartPolicyAlways,
-					TerminationGracePeriodSeconds: 30,
-					DNSPolicy:                     DNSClusterFirst,
+					RestartPolicy:                 corev1.RestartPolicyAlways,
+					TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
+					DNSPolicy:                     corev1.DNSClusterFirst,
 					SchedulerName:                 "default-scheduler",
 				},
 			},
@@ -234,19 +237,22 @@ func (r *ReconcileSentryOperator) deploymentForSentryWebUI(m *sentryoperatorv1.S
 	return dep
 }
 
-func (r *ReconcileSentryOperator) deploymentForSentryWorker(m *sentryoperatorv1.Sentry) *appsv1.Deployment {
+func (r *ReconcileSentryOperator) deploymentForSentryWorker(m *sentryoperatorv1.SentryOperator) *appsv1.Deployment {
 	name := SENTRY_WORKER
+	labels := map[string]string{"app": name}
+	var replicas int32 = 1
+	var terminationGracePeriodSeconds int64 = 30
 
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      m.Name,
+			Name:      name,
 			Namespace: m.Namespace,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: 1,
+			Replicas: &replicas,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: name,
+					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
@@ -267,7 +273,7 @@ func (r *ReconcileSentryOperator) deploymentForSentryWorker(m *sentryoperatorv1.
 							},
 							corev1.EnvVar{
 								Name:  "C_FORCE_ROOT",
-								Value: true, // TODO get from config
+								Value: "true", // TODO get from config
 							},
 							corev1.EnvVar{
 								Name:  "SENTRY_DB_USER",
@@ -306,11 +312,11 @@ func (r *ReconcileSentryOperator) deploymentForSentryWorker(m *sentryoperatorv1.
 								Value: "my_ip", // TODO get from config
 							},
 						},
-						PullPolicy: PullAlways,
+						ImagePullPolicy: corev1.PullAlways,
 					}},
-					RestartPolicy:                 RestartPolicyAlways,
-					TerminationGracePeriodSeconds: 30,
-					DNSPolicy:                     DNSClusterFirst,
+					RestartPolicy:                 corev1.RestartPolicyAlways,
+					TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
+					DNSPolicy:                     corev1.DNSClusterFirst,
 					SchedulerName:                 "default-scheduler",
 				},
 			},
@@ -321,19 +327,22 @@ func (r *ReconcileSentryOperator) deploymentForSentryWorker(m *sentryoperatorv1.
 	return dep
 }
 
-func (r *ReconcileSentryOperator) deploymentForSentryCron(m *sentryoperatorv1.Sentry) *appsv1.Deployment {
+func (r *ReconcileSentryOperator) deploymentForSentryCron(m *sentryoperatorv1.SentryOperator) *appsv1.Deployment {
 	name := SENTRY_CRON
+	labels := map[string]string{"app": name}
+	var replicas int32 = 1
+	var terminationGracePeriodSeconds int64 = 30
 
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      m.Name,
+			Name:      name,
 			Namespace: m.Namespace,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: 1,
+			Replicas: &replicas,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: name,
+					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
@@ -385,11 +394,11 @@ func (r *ReconcileSentryOperator) deploymentForSentryCron(m *sentryoperatorv1.Se
 								Value: "minio123", // TODO get from config
 							},
 						},
-						PullPolicy: PullAlways,
+						ImagePullPolicy: corev1.PullAlways,
 					}},
-					RestartPolicy:                 RestartPolicyAlways,
-					TerminationGracePeriodSeconds: 30,
-					DNSPolicy:                     DNSClusterFirst,
+					RestartPolicy:                 corev1.RestartPolicyAlways,
+					TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
+					DNSPolicy:                     corev1.DNSClusterFirst,
 					SchedulerName:                 "default-scheduler",
 				},
 			},
