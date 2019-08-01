@@ -4,6 +4,7 @@ import (
 	"context"
 
 	sentryv1 "github.com/sd-hackday-sentry/sentry-operator/pkg/apis/sentry/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +21,18 @@ import (
 )
 
 var log = logf.Log.WithName("controller_sentry")
+
+const (
+	SENTRY_WEB_UI string = "sentry-web-ui"
+	SENTRY_WORKER string = "sentry-worker"
+	SENTRY_CRON   string = "sentry-cron"
+)
+
+var allDeployments = []string{
+	SENTRY_WEB_UI,
+	SENTRY_WORKER,
+	SENTRY_CRON,
+}
 
 /**
 * USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
@@ -87,8 +100,8 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 	reqLogger.Info("Reconciling Sentry")
 
 	// Fetch the Sentry instance
-	instance := &sentryv1.Sentry{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
+	sentry := &sentryv1.Sentry{}
+	err := r.client.Get(context.TODO(), request.NamespacedName, sentry)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -100,54 +113,298 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 		return reconcile.Result{}, err
 	}
 
-	// Define a new Pod object
-	pod := newPodForCR(instance)
-
-	// Set Sentry instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	// Check if this Pod already exists
-	found := &corev1.Pod{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
-		err = r.client.Create(context.TODO(), pod)
-		if err != nil {
+	requeue := false
+	for _, depName := range allDeployments {
+		// Check if the deployment already exists, if not create a new one
+		found := &appsv1.Deployment{}
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: depName, Namespace: sentry.Namespace}, found)
+		if err != nil && errors.IsNotFound(err) {
+			requeue = true
+			// Define a new deployment
+			var dep *appsv1.Deployment
+			switch {
+			case depName == SENTRY_WEB_UI:
+				dep = r.deploymentForSentryWebUI(sentry)
+			case depName == SENTRY_WORKER:
+				dep = r.deploymentForSentryWorker(sentry)
+			case depName == SENTRY_CRON:
+				dep = r.deploymentForSentryCron(sentry)
+			}
+			reqLogger.Info("Creating a new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+			err = r.client.Create(context.TODO(), dep)
+			if err != nil {
+				reqLogger.Error(err, "Failed to create new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+				return reconcile.Result{}, err
+			}
+		} else if err != nil {
+			reqLogger.Error(err, "Failed to get Deployment.", "Deployment.Name", depName)
 			return reconcile.Result{}, err
+		} else {
+			reqLogger.Info("Deployment already exists", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
 		}
-
-		// Pod created successfully - don't requeue
-		return reconcile.Result{}, nil
-	} else if err != nil {
-		return reconcile.Result{}, err
 	}
 
-	// Pod already exists - don't requeue
-	reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
-	return reconcile.Result{}, nil
+	return reconcile.Result{Requeue: requeue}, nil
 }
 
-// newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newPodForCR(cr *sentryv1.Sentry) *corev1.Pod {
-	labels := map[string]string{
-		"app": cr.Name,
-	}
-	return &corev1.Pod{
+func (r *ReconcileSentry) deploymentForSentryWebUI(m *sentryv1.Sentry) *appsv1.Deployment {
+	name := SENTRY_WEB_UI
+	labels := map[string]string{"app": name}
+	var replicas int32 = 1
+	var terminationGracePeriodSeconds int64 = 30
+
+	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-pod",
-			Namespace: cr.Namespace,
-			Labels:    labels,
+			Name:      name,
+			Namespace: m.Namespace,
 		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:    "busybox",
-					Image:   "busybox",
-					Command: []string{"sleep", "3600"},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: labels,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Image: "sentry:latest",
+						Name:  name,
+						Ports: []corev1.ContainerPort{{
+							ContainerPort: 9000,
+							Name:          name,
+						}},
+						Env: []corev1.EnvVar{
+							corev1.EnvVar{
+								Name:  "SENTRY_POSTGRES_HOST",
+								Value: "db", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_SECRET_KEY",
+								Value: "my_secret_here_some_random_hash", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_DB_USER",
+								Value: "my_user", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_DB_PASSWORD",
+								Value: "my_password", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_REDIS_HOST",
+								Value: "my_ip", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_USE_SSL",
+								Value: "true", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_EMAIL_HOST",
+								Value: "smtp.example.com", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_SERVER_EMAIL",
+								Value: "noreply@example.com", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_FILE_ACCESS",
+								Value: "minio", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_FILE_BUCKET",
+								Value: "sentry", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_FILE_HOST",
+								Value: "'http://minio:9000'", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_FILE_SECRET",
+								Value: "minio123", // TODO get from config
+							},
+						},
+						ImagePullPolicy: corev1.PullAlways,
+					}},
+					RestartPolicy:                 corev1.RestartPolicyAlways,
+					TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
+					DNSPolicy:                     corev1.DNSClusterFirst,
+					SchedulerName:                 "default-scheduler",
 				},
 			},
 		},
 	}
+	// Set Memcached instance as the owner and controller
+	controllerutil.SetControllerReference(m, dep, r.scheme)
+	return dep
+}
+
+func (r *ReconcileSentry) deploymentForSentryWorker(m *sentryv1.Sentry) *appsv1.Deployment {
+	name := SENTRY_WORKER
+	labels := map[string]string{"app": name}
+	var replicas int32 = 1
+	var terminationGracePeriodSeconds int64 = 30
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: m.Namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: labels,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Image: "sentry:latest",
+						Name:  name,
+						Ports: []corev1.ContainerPort{{
+							ContainerPort: 9000,
+							Name:          name,
+						}},
+						Env: []corev1.EnvVar{
+							corev1.EnvVar{
+								Name:  "SENTRY_POSTGRES_HOST",
+								Value: "db", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_SECRET_KEY",
+								Value: "my_secret_here_some_random_hash", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "C_FORCE_ROOT",
+								Value: "true", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_DB_USER",
+								Value: "my_user", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_DB_PASSWORD",
+								Value: "my_password", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_SERVER_EMAIL",
+								Value: "noreply@example.com", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_FILE_ACCESS",
+								Value: "minio", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_FILE_BUCKET",
+								Value: "sentry", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_FILE_HOST",
+								Value: "'http://minio:9000'", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_FILE_SECRET",
+								Value: "minio123", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_EMAIL_HOST",
+								Value: "smtp.example.com", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_REDIS_HOST",
+								Value: "my_ip", // TODO get from config
+							},
+						},
+						ImagePullPolicy: corev1.PullAlways,
+					}},
+					RestartPolicy:                 corev1.RestartPolicyAlways,
+					TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
+					DNSPolicy:                     corev1.DNSClusterFirst,
+					SchedulerName:                 "default-scheduler",
+				},
+			},
+		},
+	}
+	// Set Memcached instance as the owner and controller
+	controllerutil.SetControllerReference(m, dep, r.scheme)
+	return dep
+}
+
+func (r *ReconcileSentry) deploymentForSentryCron(m *sentryv1.Sentry) *appsv1.Deployment {
+	name := SENTRY_CRON
+	labels := map[string]string{"app": name}
+	var replicas int32 = 1
+	var terminationGracePeriodSeconds int64 = 30
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: m.Namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: labels,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Image: "sentry:latest",
+						Name:  name,
+						Ports: []corev1.ContainerPort{{
+							ContainerPort: 9000,
+							Name:          name,
+						}},
+						Env: []corev1.EnvVar{
+							corev1.EnvVar{
+								Name:  "SENTRY_POSTGRES_HOST",
+								Value: "db", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_SECRET_KEY",
+								Value: "my_secret_here_some_random_hash", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_DB_USER",
+								Value: "my_user",
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_DB_PASSWORD",
+								Value: "my_password", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_EMAIL_HOST",
+								Value: "smtp.example.com", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_SERVER_EMAIL",
+								Value: "noreply@example.com", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_FILE_ACCESS",
+								Value: "minio", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_FILE_BUCKET",
+								Value: "sentry", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_FILE_HOST",
+								Value: "'http://minio:9000'", // TODO get from config
+							},
+							corev1.EnvVar{
+								Name:  "SENTRY_FILE_SECRET",
+								Value: "minio123", // TODO get from config
+							},
+						},
+						ImagePullPolicy: corev1.PullAlways,
+					}},
+					RestartPolicy:                 corev1.RestartPolicyAlways,
+					TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
+					DNSPolicy:                     corev1.DNSClusterFirst,
+					SchedulerName:                 "default-scheduler",
+				},
+			},
+		},
+	}
+	// Set Memcached instance as the owner and controller
+	controllerutil.SetControllerReference(m, dep, r.scheme)
+	return dep
 }
