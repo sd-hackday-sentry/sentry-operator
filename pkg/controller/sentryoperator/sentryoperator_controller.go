@@ -4,6 +4,7 @@ import (
 	"context"
 
 	sentryoperatorv1 "github.com/sd-hackday-sentry/sentry-operator/pkg/apis/sentryoperator/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -87,8 +88,8 @@ func (r *ReconcileSentryOperator) Reconcile(request reconcile.Request) (reconcil
 	reqLogger.Info("Reconciling SentryOperator")
 
 	// Fetch the SentryOperator instance
-	instance := &sentryoperatorv1.SentryOperator{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
+	sentry := &sentryoperatorv1.SentryOperator{}
+	err := r.client.Get(context.TODO(), request.NamespacedName, sentry)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -100,35 +101,35 @@ func (r *ReconcileSentryOperator) Reconcile(request reconcile.Request) (reconcil
 		return reconcile.Result{}, err
 	}
 
-	// Define a new Pod object
-	// TODO deployment, not pod
-	pod := newPodForCR(instance)
-
-	// Set SentryOperator instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	// Check if this Pod already exists
-	// TODO Check if deployments exist
-	found := &corev1.Pod{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
+	// Check if the deployment already exists, if not create a new one
+	found := &appsv1.Deployment{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: sentry.Name, Namespace: sentry.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
-		err = r.client.Create(context.TODO(), pod)
+		// Define a new deployment
+		dep := r.newDeployment(sentry)
+		reqLogger.Info("Creating a new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+		err = r.client.Create(context.TODO(), dep)
 		if err != nil {
+			reqLogger.Error(err, "Failed to create new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
 			return reconcile.Result{}, err
 		}
-
-		// Pod created successfully - don't requeue
-		return reconcile.Result{}, nil
+		// Deployment created successfully - return and requeue
+		return reconcile.Result{Requeue: true}, nil
 	} else if err != nil {
+		reqLogger.Error(err, "Failed to get Deployment.")
 		return reconcile.Result{}, err
 	}
 
-	// Pod already exists - don't requeue
-	reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
+	reqLogger.Info("Skip reconcile: Deployment already exists", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
 	return reconcile.Result{}, nil
+}
+
+// newDeployment returns a Sentry Deployment object
+func (r *ReconcileSentryOperator) newDeployment(sentry *sentryoperatorv1.SentryOperator) *appsv1.Deployment {
+	dep := &appsv1.Deployment{}
+	// Set Sentry instance as the owner and controller
+	controllerutil.SetControllerReference(sentry, dep, r.scheme)
+	return dep
 }
 
 // newPodForCR returns a busybox pod with the same name/namespace as the cr
