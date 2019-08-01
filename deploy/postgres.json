@@ -13,14 +13,14 @@
                     "template.openshift.io/expose-username": "{.data['database-user']}"
                 },
                 "labels": {
-                    "template": "postgresql-ephemeral-template"
+                    "template": "postgresql-persistent-template"
                 },
                 "name": "postgresql"
             },
             "stringData": {
                 "database-name": "sampledb",
-                "database-password": "kAv2KkBaubURkuQ8",
-                "database-user": "userFR8"
+                "database-password": "CBljwdF0DOlQDHkx",
+                "database-user": "user4T3"
             }
         },
         {
@@ -31,7 +31,7 @@
                     "template.openshift.io/expose-uri": "postgres://{.spec.clusterIP}:{.spec.ports[?(.name==\"postgresql\")].port}"
                 },
                 "labels": {
-                    "template": "postgresql-ephemeral-template"
+                    "template": "postgresql-persistent-template"
                 },
                 "name": "postgresql"
             },
@@ -56,6 +56,26 @@
             }
         },
         {
+            "apiVersion": "v1",
+            "kind": "PersistentVolumeClaim",
+            "metadata": {
+                "labels": {
+                    "template": "postgresql-persistent-template"
+                },
+                "name": "postgresql"
+            },
+            "spec": {
+                "accessModes": [
+                    "ReadWriteOnce"
+                ],
+                "resources": {
+                    "requests": {
+                        "storage": "1Gi"
+                    }
+                }
+            }
+        },
+        {
             "apiVersion": "apps.openshift.io/v1",
             "kind": "DeploymentConfig",
             "metadata": {
@@ -63,7 +83,7 @@
                     "template.alpha.openshift.io/wait-for-ready": "true"
                 },
                 "labels": {
-                    "template": "postgresql-ephemeral-template"
+                    "template": "postgresql-persistent-template"
                 },
                 "name": "postgresql"
             },
@@ -114,7 +134,7 @@
                                         }
                                     }
                                 ],
-                                "image": "postgres:9.5",
+                                "image": "centos/postgresql-95-centos7",
                                 "imagePullPolicy": "IfNotPresent",
                                 "livenessProbe": {
                                     "exec": {
@@ -164,10 +184,10 @@
                         "restartPolicy": "Always",
                         "volumes": [
                             {
-                                "emptyDir": {
-                                    "medium": ""
-                                },
-                                "name": "postgresql-data"
+                                "name": "postgresql-data",
+                                "persistentVolumeClaim": {
+                                    "claimName": "postgresql"
+                                }
                             }
                         ]
                     }
