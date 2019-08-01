@@ -3,7 +3,7 @@ package sentry
 import (
 	"context"
 
-	sentryv1 "github.com/sd-hackday-sentry/sentry-operator/pkg/apis/sentry/v1"
+	sentryv1alpha1 "github.com/sd-hackday-sentry/sentry-operator/pkg/apis/sentry/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -59,7 +59,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 
 	// Watch for changes to primary resource Sentry
-	err = c.Watch(&source.Kind{Type: &sentryv1.Sentry{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &sentryv1alpha1.Sentry{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	// Watch for changes to secondary resource Pods and requeue the owner Sentry
 	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
-		OwnerType:    &sentryv1.Sentry{},
+		OwnerType:    &sentryv1alpha1.Sentry{},
 	})
 	if err != nil {
 		return err
@@ -100,7 +100,7 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 	reqLogger.Info("Reconciling Sentry")
 
 	// Fetch the Sentry instance
-	sentry := &sentryv1.Sentry{}
+	sentry := &sentryv1alpha1.Sentry{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, sentry)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -147,7 +147,7 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 	return reconcile.Result{Requeue: requeue}, nil
 }
 
-func (r *ReconcileSentry) deploymentForSentryWebUI(m *sentryv1.Sentry) *appsv1.Deployment {
+func (r *ReconcileSentry) deploymentForSentryWebUI(m *sentryv1alpha1.Sentry) *appsv1.Deployment {
 	name := SENTRY_WEB_UI
 	labels := map[string]string{"app": name}
 	var replicas int32 = 1
@@ -229,7 +229,7 @@ func (r *ReconcileSentry) deploymentForSentryWebUI(m *sentryv1.Sentry) *appsv1.D
 	return dep
 }
 
-func (r *ReconcileSentry) deploymentForSentryWorker(m *sentryv1.Sentry) *appsv1.Deployment {
+func (r *ReconcileSentry) deploymentForSentryWorker(m *sentryv1alpha1.Sentry) *appsv1.Deployment {
 	name := SENTRY_WORKER
 	labels := map[string]string{"app": name}
 	var replicas int32 = 1
@@ -311,7 +311,7 @@ func (r *ReconcileSentry) deploymentForSentryWorker(m *sentryv1.Sentry) *appsv1.
 	return dep
 }
 
-func (r *ReconcileSentry) deploymentForSentryCron(m *sentryv1.Sentry) *appsv1.Deployment {
+func (r *ReconcileSentry) deploymentForSentryCron(m *sentryv1alpha1.Sentry) *appsv1.Deployment {
 	name := SENTRY_CRON
 	labels := map[string]string{"app": name}
 	var replicas int32 = 1
