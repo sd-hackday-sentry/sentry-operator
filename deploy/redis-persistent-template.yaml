@@ -115,7 +115,7 @@
                 terminationMessagePath: "/dev/termination-log"
                 volumeMounts: 
                   - 
-                    mountPath: "/var/lib/redis/data"
+                    mountPath: "/data"
                     name: "${DATABASE_SERVICE_NAME}-data"
             dnsPolicy: "ClusterFirst"
             restartPolicy: "Always"
