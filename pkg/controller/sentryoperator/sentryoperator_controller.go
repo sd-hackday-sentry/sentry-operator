@@ -101,6 +101,7 @@ func (r *ReconcileSentryOperator) Reconcile(request reconcile.Request) (reconcil
 	}
 
 	// Define a new Pod object
+	// TODO deployment, not pod
 	pod := newPodForCR(instance)
 
 	// Set SentryOperator instance as the owner and controller
@@ -109,6 +110,7 @@ func (r *ReconcileSentryOperator) Reconcile(request reconcile.Request) (reconcil
 	}
 
 	// Check if this Pod already exists
+	// TODO Check if deployments exist
 	found := &corev1.Pod{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
@@ -130,6 +132,8 @@ func (r *ReconcileSentryOperator) Reconcile(request reconcile.Request) (reconcil
 }
 
 // newPodForCR returns a busybox pod with the same name/namespace as the cr
+// TODO this shoudl be modified to provide a sentry depoyment
+// we'll probably need one for each deployment in sentry-worker sentry-ui sentry-cron
 func newPodForCR(cr *sentryoperatorv1.SentryOperator) *corev1.Pod {
 	labels := map[string]string{
 		"app": cr.Name,
