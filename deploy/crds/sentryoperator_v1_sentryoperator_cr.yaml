@@ -1,7 +1,0 @@
-apiVersion: sentry-operator.redhat.com/v1
-kind: SentryOperator
-metadata:
-  name: example-sentryoperator
-spec:
-  # Add fields here
-  size: 3
