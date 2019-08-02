@@ -1,4 +1,4 @@
-package v1
+package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,22 +18,22 @@ type SentrySpec struct {
 	Name string `json:"name"`
 
 	//Postgreshost is the name of server running postgres
-	Postgreshost     string `json:"postgreshost"`
+	Postgreshost string `json:"postgreshost"`
 	//Postgresport is the port on which the database server is listening
-	Postgresport     int    `json:"postgresport"`
+	Postgresport int `json:"postgresport"`
 	//Postgresname is the name of the database within postgres we're using
-	Postgresname     string `json:"postgresname"`
+	Postgresname string `json:"postgresname"`
 	// Postgresuser is the name of the secret containing the database username
-	Postgresuser     string `json:"postgresuser"`
+	Postgresuser string `json:"postgresuser"`
 	// Postgrespassword is the name of the secret containing the database password
 	Postgrespassword string `json:"postgrespassword"`
 
 	// Redishost is the name of the server running redis
-	Redishost        string `json:"redishost"`
+	Redishost string `json:"redishost"`
 	// Redisport is the port on which the redis server is listening
-	Redisport        int    `json:"redisport"`
+	Redisport int `json:"redisport"`
 	// Redisname is the name of the redis instance we're using
-	Redisname        string `json:"redisname"`
+	Redisname string `json:"redisname"`
 }
 
 // SentryStatus defines the observed state of Sentry
