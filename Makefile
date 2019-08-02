@@ -3,7 +3,7 @@ GITCOMMIT=$(shell git rev-parse --short HEAD)$(shell [[ $$(git status --porcelai
 LDFLAGS="-X main.gitCommit=$(GITCOMMIT)"
 
 ifndef QUAY_REPO
-	QUAY_REPO:=jkad/sentry-operator
+	QUAY_REPO:=thekad/sentry-operator
 endif
 
 OPERATOR_IMAGE ?= quay.io/$(QUAY_REPO):$(GITCOMMIT)

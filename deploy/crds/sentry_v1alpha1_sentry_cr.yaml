@@ -3,5 +3,12 @@ kind: Sentry
 metadata:
   name: example-sentry
 spec:
-  # Add fields here
-  size: 3
+  sentryVersion: latest
+  postgresHost: replace_me
+  postgresPort: 5432
+  postgresDB: sampledb
+  postgresUser: postgres
+  postgresPassword: replace_me
+  redisHost: replace_me
+  redisPort: 6379
+  redisDB: redis
