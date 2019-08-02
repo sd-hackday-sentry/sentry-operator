@@ -429,6 +429,7 @@ func (r *ReconcileSentry) serviceForSentryWebUI(m *v1alpha1.Sentry, name string)
 		},
 		Spec: v1.ServiceSpec{
 			Selector: appLabel,
+			Type:     v1.ServiceTypeLoadBalancer,
 			Ports: []v1.ServicePort{
 				{
 					Protocol: v1.ProtocolTCP,
