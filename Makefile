@@ -4,7 +4,10 @@ LDFLAGS="-X main.gitCommit=$(GITCOMMIT)"
 
 OPERATOR_IMAGE ?= quay.io/thekad/sentry-operator:$(GITCOMMIT)
 
-.PHONY: generate image push deploy scrub
+.PHONY: setup generate image push deploy scrub
+
+setup:
+	@GO111MODULE=on go mod vendor -v
 
 generate:
 	@operator-sdk generate k8s
