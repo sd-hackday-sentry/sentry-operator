@@ -32,46 +32,49 @@ spec:
             name:
               description: Name is the distinct name of the Sentry service we're running
               type: string
-            postgreshost:
-              description: Postgreshost is the name of server running postgres
+            postgresDB:
+              description: PostgresDB is the database within postgres we're using
               type: string
-            postgresname:
-              description: Postgresname is the name of the database within postgres
-                we're using
+            postgresHost:
+              description: PostgresHost is the name of server running postgres
               type: string
-            postgrespassword:
-              description: Postgrespassword is the name of the secret containing the
+            postgresPassword:
+              description: PostgresPassword is the name of the secret containing the
                 database password
               type: string
-            postgresport:
-              description: Postgresport is the port on which the database server is
+            postgresPort:
+              description: PostgresPort is the port on which the database server is
                 listening
               format: int64
               type: integer
-            postgresuser:
-              description: Postgresuser is the name of the secret containing the database
+            postgresUser:
+              description: PostgresUser is the name of the secret containing the database
                 username
               type: string
-            redishost:
-              description: Redishost is the name of the server running redis
+            redisDB:
+              description: RedisDB is the name of the redis instance we're using
               type: string
-            redisname:
-              description: Redisname is the name of the redis instance we're using
+            redisHost:
+              description: RedisHost is the name of the server running redis
               type: string
-            redisport:
-              description: Redisport is the port on which the redis server is listening
+            redisPort:
+              description: RedisPort is the port on which the redis server is listening
               format: int64
               type: integer
+            sentryVersion:
+              description: SentryVersion is the version of sentry we are running
+              type: string
           required:
           - name
-          - postgreshost
-          - postgresport
-          - postgresname
-          - postgresuser
-          - postgrespassword
-          - redishost
-          - redisport
-          - redisname
+          - sentryVersion
+          - postgresHost
+          - postgresPort
+          - postgresDB
+          - postgresUser
+          - postgresPassword
+          - redisHost
+          - redisPort
+          - redisDB
           type: object
         status:
           properties:

@@ -17,23 +17,26 @@ type SentrySpec struct {
 	//Name is the distinct name of the Sentry service we're running
 	Name string `json:"name"`
 
-	//Postgreshost is the name of server running postgres
-	Postgreshost string `json:"postgreshost"`
-	//Postgresport is the port on which the database server is listening
-	Postgresport int `json:"postgresport"`
-	//Postgresname is the name of the database within postgres we're using
-	Postgresname string `json:"postgresname"`
-	// Postgresuser is the name of the secret containing the database username
-	Postgresuser string `json:"postgresuser"`
-	// Postgrespassword is the name of the secret containing the database password
-	Postgrespassword string `json:"postgrespassword"`
+	//SentryVersion is the version of sentry we are running
+	SentryVersion string `json:"sentryVersion"`
 
-	// Redishost is the name of the server running redis
-	Redishost string `json:"redishost"`
-	// Redisport is the port on which the redis server is listening
-	Redisport int `json:"redisport"`
-	// Redisname is the name of the redis instance we're using
-	Redisname string `json:"redisname"`
+	//PostgresHost is the name of server running postgres
+	PostgresHost string `json:"postgresHost"`
+	//PostgresPort is the port on which the database server is listening
+	PostgresPort int `json:"postgresPort"`
+	//PostgresDB is the database within postgres we're using
+	PostgresDB string `json:"postgresDB"`
+	// PostgresUser is the name of the secret containing the database username
+	PostgresUser string `json:"postgresUser"`
+	// PostgresPassword is the name of the secret containing the database password
+	PostgresPassword string `json:"postgresPassword"`
+
+	// RedisHost is the name of the server running redis
+	RedisHost string `json:"redisHost"`
+	// RedisPort is the port on which the redis server is listening
+	RedisPort int `json:"redisPort"`
+	// RedisDB is the name of the redis instance we're using
+	RedisDB string `json:"redisDB"`
 }
 
 // SentryStatus defines the observed state of Sentry

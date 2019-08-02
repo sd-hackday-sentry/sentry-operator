@@ -73,64 +73,71 @@ func schema_pkg_apis_sentry_v1alpha1_SentrySpec(ref common.ReferenceCallback) co
 							Format:      "",
 						},
 					},
-					"postgreshost": {
+					"sentryVersion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Postgreshost is the name of server running postgres",
+							Description: "SentryVersion is the version of sentry we are running",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"postgresport": {
+					"postgresHost": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Postgresport is the port on which the database server is listening",
+							Description: "PostgresHost is the name of server running postgres",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"postgresPort": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PostgresPort is the port on which the database server is listening",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
-					"postgresname": {
+					"postgresDB": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Postgresname is the name of the database within postgres we're using",
+							Description: "PostgresDB is the database within postgres we're using",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"postgresuser": {
+					"postgresUser": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Postgresuser is the name of the secret containing the database username",
+							Description: "PostgresUser is the name of the secret containing the database username",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"postgrespassword": {
+					"postgresPassword": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Postgrespassword is the name of the secret containing the database password",
+							Description: "PostgresPassword is the name of the secret containing the database password",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"redishost": {
+					"redisHost": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Redishost is the name of the server running redis",
+							Description: "RedisHost is the name of the server running redis",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"redisport": {
+					"redisPort": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Redisport is the port on which the redis server is listening",
+							Description: "RedisPort is the port on which the redis server is listening",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
-					"redisname": {
+					"redisDB": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Redisname is the name of the redis instance we're using",
+							Description: "RedisDB is the name of the redis instance we're using",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 				},
-				Required: []string{"name", "postgreshost", "postgresport", "postgresname", "postgresuser", "postgrespassword", "redishost", "redisport", "redisname"},
+				Required: []string{"name", "sentryVersion", "postgresHost", "postgresPort", "postgresDB", "postgresUser", "postgresPassword", "redisHost", "redisPort", "redisDB"},
 			},
 		},
 		Dependencies: []string{},

@@ -2,6 +2,7 @@ package sentry
 
 import (
 	"context"
+	"fmt"
 
 	v1alpha1 "github.com/sd-hackday-sentry/sentry-operator/pkg/apis/sentry/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -21,18 +22,6 @@ import (
 )
 
 var log = logf.Log.WithName("controller_sentry")
-
-const (
-	SENTRY_WEB_UI string = "sentry-web-ui"
-	SENTRY_WORKER string = "sentry-worker"
-	SENTRY_CRON   string = "sentry-cron"
-)
-
-var allDeployments = []string{
-	SENTRY_WEB_UI,
-	SENTRY_WORKER,
-	SENTRY_CRON,
-}
 
 /**
 * USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
@@ -114,22 +103,20 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 	}
 
 	requeue := false
-	for _, depName := range allDeployments {
+
+	var allDeployments = map[string]func(*v1alpha1.Sentry, string) *appsv1.Deployment{
+		"sentry-web-ui": r.deploymentForSentryWebUI,
+		"sentry-worker": r.deploymentForSentryWorker,
+		"sentry-cron":   r.deploymentForSentryCron,
+	}
+
+	for name, f := range allDeployments {
 		// Check if the deployment already exists, if not create a new one
 		found := &appsv1.Deployment{}
-		err = r.client.Get(context.TODO(), types.NamespacedName{Name: depName, Namespace: sentry.Namespace}, found)
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: sentry.Namespace}, found)
 		if err != nil && errors.IsNotFound(err) {
 			requeue = true
-			// Define a new deployment
-			var dep *appsv1.Deployment
-			switch {
-			case depName == SENTRY_WEB_UI:
-				dep = r.deploymentForSentryWebUI(sentry)
-			case depName == SENTRY_WORKER:
-				dep = r.deploymentForSentryWorker(sentry)
-			case depName == SENTRY_CRON:
-				dep = r.deploymentForSentryCron(sentry)
-			}
+			var dep *appsv1.Deployment = f(sentry, name)
 			reqLogger.Info("Creating a new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
 			err = r.client.Create(context.TODO(), dep)
 			if err != nil {
@@ -137,7 +124,7 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 				return reconcile.Result{}, err
 			}
 		} else if err != nil {
-			reqLogger.Error(err, "Failed to get Deployment.", "Deployment.Name", depName)
+			reqLogger.Error(err, "Failed to get Deployment.", "Deployment.Name", name)
 			return reconcile.Result{}, err
 		} else {
 			reqLogger.Info("Deployment already exists", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
@@ -147,8 +134,7 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 	return reconcile.Result{Requeue: requeue}, nil
 }
 
-func (r *ReconcileSentry) deploymentForSentryWebUI(m *v1alpha1.Sentry) *appsv1.Deployment {
-	name := SENTRY_WEB_UI
+func (r *ReconcileSentry) deploymentForSentryWebUI(m *v1alpha1.Sentry, name string) *appsv1.Deployment {
 	labels := map[string]string{"app": name}
 	var replicas int32 = 1
 	var terminationGracePeriodSeconds int64 = 30
@@ -166,7 +152,7 @@ func (r *ReconcileSentry) deploymentForSentryWebUI(m *v1alpha1.Sentry) *appsv1.D
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Image: "sentry:latest",
+						Image: fmt.Sprintf("sentry:%s", m.Spec.SentryVersion),
 						Name:  name,
 						Ports: []corev1.ContainerPort{{
 							ContainerPort: 9000,
@@ -179,35 +165,35 @@ func (r *ReconcileSentry) deploymentForSentryWebUI(m *v1alpha1.Sentry) *appsv1.D
 							},
 							{
 								Name:  "SENTRY_POSTGRES_HOST",
-								Value: m.Spec.Postgreshost,
+								Value: m.Spec.PostgresHost,
 							},
 							{
 								Name:  "SENTRY_POSTGRES_PORT",
-								Value: string(m.Spec.Postgresport),
+								Value: string(m.Spec.PostgresPort),
 							},
 							{
 								Name:  "SENTRY_DB_NAME",
-								Value: m.Spec.Postgresname,
+								Value: m.Spec.PostgresDB,
 							},
 							{
 								Name:  "SENTRY_DB_USER",
-								Value: m.Spec.Postgresuser,
+								Value: m.Spec.PostgresUser,
 							},
 							{
 								Name:  "SENTRY_DB_PASSWORD",
-								Value: m.Spec.Postgrespassword,
+								Value: m.Spec.PostgresPassword,
 							},
 							{
 								Name:  "SENTRY_REDIS_HOST",
-								Value: m.Spec.Redishost,
+								Value: m.Spec.RedisHost,
 							},
 							{
 								Name:  "SENTRY_REDIS_PORT",
-								Value: string(m.Spec.Redisport),
+								Value: string(m.Spec.RedisPort),
 							},
 							{
 								Name:  "SENTRY_REDIS_DB",
-								Value: m.Spec.Redisname,
+								Value: m.Spec.RedisDB,
 							},
 							{
 								Name:  "SENTRY_USE_SSL",
@@ -229,8 +215,7 @@ func (r *ReconcileSentry) deploymentForSentryWebUI(m *v1alpha1.Sentry) *appsv1.D
 	return dep
 }
 
-func (r *ReconcileSentry) deploymentForSentryWorker(m *v1alpha1.Sentry) *appsv1.Deployment {
-	name := SENTRY_WORKER
+func (r *ReconcileSentry) deploymentForSentryWorker(m *v1alpha1.Sentry, name string) *appsv1.Deployment {
 	labels := map[string]string{"app": name}
 	var replicas int32 = 1
 	var terminationGracePeriodSeconds int64 = 30
@@ -261,35 +246,35 @@ func (r *ReconcileSentry) deploymentForSentryWorker(m *v1alpha1.Sentry) *appsv1.
 							},
 							{
 								Name:  "SENTRY_POSTGRES_HOST",
-								Value: m.Spec.Postgreshost,
+								Value: m.Spec.PostgresHost,
 							},
 							{
 								Name:  "SENTRY_POSTGRES_PORT",
-								Value: string(m.Spec.Postgresport),
+								Value: string(m.Spec.PostgresPort),
 							},
 							{
 								Name:  "SENTRY_DB_NAME",
-								Value: m.Spec.Postgresname,
+								Value: m.Spec.PostgresDB,
 							},
 							{
 								Name:  "SENTRY_DB_USER",
-								Value: m.Spec.Postgresuser,
+								Value: m.Spec.PostgresUser,
 							},
 							{
 								Name:  "SENTRY_DB_PASSWORD",
-								Value: m.Spec.Postgrespassword,
+								Value: m.Spec.PostgresPassword,
 							},
 							{
 								Name:  "SENTRY_REDIS_HOST",
-								Value: m.Spec.Redishost,
+								Value: m.Spec.RedisHost,
 							},
 							{
 								Name:  "SENTRY_REDIS_PORT",
-								Value: string(m.Spec.Redisport),
+								Value: string(m.Spec.RedisPort),
 							},
 							{
 								Name:  "SENTRY_REDIS_DB",
-								Value: m.Spec.Redisname,
+								Value: m.Spec.RedisDB,
 							},
 							{
 								Name:  "C_FORCE_ROOT",
@@ -311,8 +296,7 @@ func (r *ReconcileSentry) deploymentForSentryWorker(m *v1alpha1.Sentry) *appsv1.
 	return dep
 }
 
-func (r *ReconcileSentry) deploymentForSentryCron(m *v1alpha1.Sentry) *appsv1.Deployment {
-	name := SENTRY_CRON
+func (r *ReconcileSentry) deploymentForSentryCron(m *v1alpha1.Sentry, name string) *appsv1.Deployment {
 	labels := map[string]string{"app": name}
 	var replicas int32 = 1
 	var terminationGracePeriodSeconds int64 = 30
@@ -343,35 +327,35 @@ func (r *ReconcileSentry) deploymentForSentryCron(m *v1alpha1.Sentry) *appsv1.De
 							},
 							{
 								Name:  "SENTRY_POSTGRES_HOST",
-								Value: m.Spec.Postgreshost,
+								Value: m.Spec.PostgresHost,
 							},
 							{
 								Name:  "SENTRY_POSTGRES_PORT",
-								Value: string(m.Spec.Postgresport),
+								Value: string(m.Spec.PostgresPort),
 							},
 							{
 								Name:  "SENTRY_DB_NAME",
-								Value: m.Spec.Postgresname,
+								Value: m.Spec.PostgresDB,
 							},
 							{
 								Name:  "SENTRY_DB_USER",
-								Value: m.Spec.Postgresuser,
+								Value: m.Spec.PostgresUser,
 							},
 							{
 								Name:  "SENTRY_DB_PASSWORD",
-								Value: m.Spec.Postgrespassword,
+								Value: m.Spec.PostgresPassword,
 							},
 							{
 								Name:  "SENTRY_REDIS_HOST",
-								Value: m.Spec.Redishost,
+								Value: m.Spec.RedisHost,
 							},
 							{
 								Name:  "SENTRY_REDIS_PORT",
-								Value: string(m.Spec.Redisport),
+								Value: string(m.Spec.RedisPort),
 							},
 							{
 								Name:  "SENTRY_REDIS_DB",
-								Value: m.Spec.Redisname,
+								Value: m.Spec.RedisDB,
 							},
 							{
 								Name:  "C_FORCE_ROOT",
