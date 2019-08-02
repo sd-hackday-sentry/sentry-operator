@@ -14,16 +14,13 @@ type SentrySpec struct {
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
 
-	//Name is the distinct name of the Sentry service we're running
-	Name string `json:"name"`
-
-	//SentryVersion is the version of sentry we are running
-	SentryVersion string `json:"sentryVersion"`
+	//SentryImage is the image of sentry we are running (defaults: docker.io/sentry:latest)
+	SentryImage string `json:"sentryImage,omitempty"`
 
 	//PostgresHost is the name of server running postgres
 	PostgresHost string `json:"postgresHost"`
-	//PostgresPort is the port on which the database server is listening
-	PostgresPort int `json:"postgresPort"`
+	//PostgresPort is the port on which the database server is listening (defaults: 5432)
+	PostgresPort int `json:"postgresPort,omitempty"`
 	//PostgresDB is the database within postgres we're using
 	PostgresDB string `json:"postgresDB"`
 	// PostgresUser is the name of the secret containing the database username
@@ -33,10 +30,10 @@ type SentrySpec struct {
 
 	// RedisHost is the name of the server running redis
 	RedisHost string `json:"redisHost"`
-	// RedisPort is the port on which the redis server is listening
-	RedisPort int `json:"redisPort"`
-	// RedisDB is the name of the redis instance we're using
-	RedisDB string `json:"redisDB"`
+	// RedisPort is the port on which the redis server is listening (defaults: 6379)
+	RedisPort int `json:"redisPort,omitempty"`
+	// RedisDB is the name of the redis instance we're using (defaults: "0")
+	RedisDB string `json:"redisDB,omitempty"`
 }
 
 // SentryStatus defines the observed state of Sentry
@@ -60,6 +57,28 @@ type Sentry struct {
 
 	Spec   SentrySpec   `json:"spec,omitempty"`
 	Status SentryStatus `json:"status,omitempty"`
+}
+
+// SetDefaults set the default values for the sentry spec
+func (s *Sentry) SetDefaults() {
+
+	sp := &s.Spec
+
+	if sp.SentryImage == "" {
+		sp.SentryImage = "docker.io/sentry:latest"
+	}
+
+	if sp.PostgresPort == 0 {
+		sp.PostgresPort = 5432
+	}
+
+	if sp.RedisPort == 0 {
+		sp.RedisPort = 6379
+	}
+
+	if sp.RedisDB == "" {
+		sp.RedisDB = "0"
+	}
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

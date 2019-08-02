@@ -66,16 +66,9 @@ func schema_pkg_apis_sentry_v1alpha1_SentrySpec(ref common.ReferenceCallback) co
 			SchemaProps: spec.SchemaProps{
 				Description: "SentrySpec defines the desired state of Sentry",
 				Properties: map[string]spec.Schema{
-					"name": {
+					"sentryImage": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name is the distinct name of the Sentry service we're running",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"sentryVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "SentryVersion is the version of sentry we are running",
+							Description: "SentryImage is the image of sentry we are running (defaults: docker.io/sentry:latest)",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -89,7 +82,7 @@ func schema_pkg_apis_sentry_v1alpha1_SentrySpec(ref common.ReferenceCallback) co
 					},
 					"postgresPort": {
 						SchemaProps: spec.SchemaProps{
-							Description: "PostgresPort is the port on which the database server is listening",
+							Description: "PostgresPort is the port on which the database server is listening (defaults: 5432)",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -124,20 +117,20 @@ func schema_pkg_apis_sentry_v1alpha1_SentrySpec(ref common.ReferenceCallback) co
 					},
 					"redisPort": {
 						SchemaProps: spec.SchemaProps{
-							Description: "RedisPort is the port on which the redis server is listening",
+							Description: "RedisPort is the port on which the redis server is listening (defaults: 6379)",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
 					"redisDB": {
 						SchemaProps: spec.SchemaProps{
-							Description: "RedisDB is the name of the redis instance we're using",
+							Description: "RedisDB is the name of the redis instance we're using (defaults: \"0\")",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 				},
-				Required: []string{"name", "sentryVersion", "postgresHost", "postgresPort", "postgresDB", "postgresUser", "postgresPassword", "redisHost", "redisPort", "redisDB"},
+				Required: []string{"postgresHost", "postgresDB", "postgresUser", "postgresPassword", "redisHost"},
 			},
 		},
 		Dependencies: []string{},

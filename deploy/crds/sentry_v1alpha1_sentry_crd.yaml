@@ -29,9 +29,6 @@ spec:
           type: object
         spec:
           properties:
-            name:
-              description: Name is the distinct name of the Sentry service we're running
-              type: string
             postgresDB:
               description: PostgresDB is the database within postgres we're using
               type: string
@@ -43,8 +40,8 @@ spec:
                 database password
               type: string
             postgresPort:
-              description: PostgresPort is the port on which the database server is
-                listening
+              description: 'PostgresPort is the port on which the database server
+                is listening (defaults: 5432)'
               format: int64
               type: integer
             postgresUser:
@@ -52,29 +49,27 @@ spec:
                 username
               type: string
             redisDB:
-              description: RedisDB is the name of the redis instance we're using
+              description: 'RedisDB is the name of the redis instance we''re using
+                (defaults: "0")'
               type: string
             redisHost:
               description: RedisHost is the name of the server running redis
               type: string
             redisPort:
-              description: RedisPort is the port on which the redis server is listening
+              description: 'RedisPort is the port on which the redis server is listening
+                (defaults: 6379)'
               format: int64
               type: integer
-            sentryVersion:
-              description: SentryVersion is the version of sentry we are running
+            sentryImage:
+              description: 'SentryImage is the image of sentry we are running (defaults:
+                docker.io/sentry:latest)'
               type: string
           required:
-          - name
-          - sentryVersion
           - postgresHost
-          - postgresPort
           - postgresDB
           - postgresUser
           - postgresPassword
           - redisHost
-          - redisPort
-          - redisDB
           type: object
         status:
           properties:
