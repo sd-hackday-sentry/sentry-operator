@@ -7,6 +7,7 @@ import (
 	v1alpha1 "github.com/sd-hackday-sentry/sentry-operator/pkg/apis/sentry/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -130,6 +131,32 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 			return reconcile.Result{}, err
 		} else {
 			reqLogger.Info("Deployment already exists", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
+		}
+	}
+
+	// create all service
+	var allService = map[string]func(*v1alpha1.Sentry, string) *v1.Service{
+		"sentry-web-ui": r.serviceForSentryWebUI,
+	}
+
+	for name, f := range allService {
+		// Check if the service already exists, if not create a new one
+		found := &v1.Service{}
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: sentry.Namespace}, found)
+		if err != nil && errors.IsNotFound(err) {
+			requeue = true
+			var svc *v1.Service = f(sentry, name)
+			reqLogger.Info("Creating a new Service.", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+			err = r.client.Create(context.TODO(), svc)
+			if err != nil {
+				reqLogger.Error(err, "Failed to create new Service.", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+				return reconcile.Result{}, err
+			}
+		} else if err != nil {
+			reqLogger.Error(err, "Failed to get Service.", "Service.Name", name)
+			return reconcile.Result{}, err
+		} else {
+			reqLogger.Info("Service already exists", "Service.Namespace", found.Namespace, "Service.Name", found.Name)
 		}
 	}
 
@@ -389,4 +416,29 @@ func (r *ReconcileSentry) deploymentForSentryCron(m *v1alpha1.Sentry, name strin
 	// Set Memcached instance as the owner and controller
 	controllerutil.SetControllerReference(m, dep, r.scheme)
 	return dep
+}
+
+func (r *ReconcileSentry) serviceForSentryWebUI(m *v1alpha1.Sentry, name string) *v1.Service {
+	serviceLabel := map[string]string{"service": name}
+	appLabel := map[string]string{"app": name}
+	svc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: m.Namespace,
+			Labels:    serviceLabel,
+		},
+		Spec: v1.ServiceSpec{
+			Selector: appLabel,
+			Ports: []v1.ServicePort{
+				{
+					Protocol: v1.ProtocolTCP,
+					Port:     9000,
+				},
+			},
+		},
+	}
+
+	// Set Sentry instance as the owner and controller
+	controllerutil.SetControllerReference(m, svc, r.scheme)
+	return svc
 }
