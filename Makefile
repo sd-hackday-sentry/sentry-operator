@@ -2,7 +2,11 @@ SHELL := /bin/bash
 GITCOMMIT=$(shell git rev-parse --short HEAD)$(shell [[ $$(git status --porcelain) = "" ]] || echo -dirty)
 LDFLAGS="-X main.gitCommit=$(GITCOMMIT)"
 
-OPERATOR_IMAGE ?= quay.io/thekad/sentry-operator:$(GITCOMMIT)
+ifndef QUAY_REPO
+	QUAY_REPO:=jkad/sentry-operator
+endif
+
+OPERATOR_IMAGE ?= quay.io/$(QUAY_REPO):$(GITCOMMIT)
 
 .PHONY: setup generate image push deploy scrub
 
