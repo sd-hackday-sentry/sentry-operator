@@ -91,6 +91,8 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 	// Fetch the Sentry instance
 	sentry := &v1alpha1.Sentry{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, sentry)
+	sentry.SetDefaults()
+
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -155,8 +157,9 @@ func (r *ReconcileSentry) deploymentForSentryWebUI(m *v1alpha1.Sentry, name stri
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Image: fmt.Sprintf("sentry:%s", m.Spec.SentryVersion),
+						Image: m.Spec.SentryImage,
 						Name:  name,
+						Args:  []string{"run", "web"},
 						Ports: []corev1.ContainerPort{{
 							ContainerPort: 9000,
 							Name:          name,
@@ -172,7 +175,7 @@ func (r *ReconcileSentry) deploymentForSentryWebUI(m *v1alpha1.Sentry, name stri
 							},
 							{
 								Name:  "SENTRY_POSTGRES_PORT",
-								Value: string(m.Spec.PostgresPort),
+								Value: fmt.Sprintf("%d", m.Spec.PostgresPort),
 							},
 							{
 								Name:  "SENTRY_DB_NAME",
@@ -192,7 +195,7 @@ func (r *ReconcileSentry) deploymentForSentryWebUI(m *v1alpha1.Sentry, name stri
 							},
 							{
 								Name:  "SENTRY_REDIS_PORT",
-								Value: string(m.Spec.RedisPort),
+								Value: fmt.Sprintf("%d", m.Spec.RedisPort),
 							},
 							{
 								Name:  "SENTRY_REDIS_DB",
@@ -239,8 +242,9 @@ func (r *ReconcileSentry) deploymentForSentryWorker(m *v1alpha1.Sentry, name str
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Image: "sentry:latest",
+						Image: m.Spec.SentryImage,
 						Name:  name,
+						Args:  []string{"run", "worker"},
 						Ports: []corev1.ContainerPort{{
 							ContainerPort: 9000,
 							Name:          name,
@@ -256,7 +260,7 @@ func (r *ReconcileSentry) deploymentForSentryWorker(m *v1alpha1.Sentry, name str
 							},
 							{
 								Name:  "SENTRY_POSTGRES_PORT",
-								Value: string(m.Spec.PostgresPort),
+								Value: fmt.Sprintf("%d", m.Spec.PostgresPort),
 							},
 							{
 								Name:  "SENTRY_DB_NAME",
@@ -276,7 +280,7 @@ func (r *ReconcileSentry) deploymentForSentryWorker(m *v1alpha1.Sentry, name str
 							},
 							{
 								Name:  "SENTRY_REDIS_PORT",
-								Value: string(m.Spec.RedisPort),
+								Value: fmt.Sprintf("%d", m.Spec.RedisPort),
 							},
 							{
 								Name:  "SENTRY_REDIS_DB",
@@ -323,8 +327,9 @@ func (r *ReconcileSentry) deploymentForSentryCron(m *v1alpha1.Sentry, name strin
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Image: "sentry:latest",
+						Image: m.Spec.SentryImage,
 						Name:  name,
+						Args:  []string{"run", "cron"},
 						Ports: []corev1.ContainerPort{{
 							ContainerPort: 9000,
 							Name:          name,
@@ -340,7 +345,7 @@ func (r *ReconcileSentry) deploymentForSentryCron(m *v1alpha1.Sentry, name strin
 							},
 							{
 								Name:  "SENTRY_POSTGRES_PORT",
-								Value: string(m.Spec.PostgresPort),
+								Value: fmt.Sprintf("%d", m.Spec.PostgresPort),
 							},
 							{
 								Name:  "SENTRY_DB_NAME",
@@ -360,7 +365,7 @@ func (r *ReconcileSentry) deploymentForSentryCron(m *v1alpha1.Sentry, name strin
 							},
 							{
 								Name:  "SENTRY_REDIS_PORT",
-								Value: string(m.Spec.RedisPort),
+								Value: fmt.Sprintf("%d", m.Spec.RedisPort),
 							},
 							{
 								Name:  "SENTRY_REDIS_DB",
