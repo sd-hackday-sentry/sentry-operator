@@ -4,18 +4,31 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // SentrySpec defines the desired state of Sentry
 // +k8s:openapi-gen=true
 type SentrySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
-	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
-
 	//SentryImage is the image of sentry we are running (defaults: docker.io/sentry:latest)
 	SentryImage string `json:"sentryImage,omitempty"`
+	//SentryWebReplicas is the number of web workers to spawn (defaults: 2)
+	SentryWebReplicas int `json:"sentryWebReplicas,omitempty"`
+	//SentryWorkers is the number of async workers to spawn (defaults: 3)
+	SentryWorkers int `json:"sentryWorkers,omitempty"`
+	//SentryEnvironment is the environment this sentry cluster belongs to (defaults: production)
+	SentryEnvironment string `json:"sentryEnvironment,omitempty"`
+	//SentrySecret is the secret holding the sentry-specific secret config values
+	SentrySecret string `json:"sentrySecret"`
+	//SentrySecretKeyKey is the key inside the sentry secret holding the salt hash string
+	//for cryptography (defaults: SENTRY_SECRET_KEY)
+	SentrySecretKeyKey string `json:"sentrySecretKeyKey,omitempty"`
+	//PostgresPasswordKey is the key inside the sentry secret holding the password
+	//to connect to the database (defaults: SENTRY_DB_PASSWORD)
+	PostgresPasswordKey string `json:"postgresPasswordKey,omitempty"`
+	//SentrySuperUserEmailKey is the key inside the sentry secret holding the
+	//superuser's email address (defaults: "SENTRY_SU_EMAIL")
+	SentrySuperUserEmailKey string `json:"sentrySuperUserEmailKey,omitempty"`
+	//SentrySuperUserPasswordKey is the key inside the sentry secret holding the
+	//superuser's password (defaults: "SENTRY_SU_PASSWORD")
+	SentrySuperUserPasswordKey string `json:"sentrySuperUserPasswordKey,omitempty"`
 
 	//PostgresHost is the name of server running postgres
 	PostgresHost string `json:"postgresHost"`
@@ -23,16 +36,14 @@ type SentrySpec struct {
 	PostgresPort int `json:"postgresPort,omitempty"`
 	//PostgresDB is the database within postgres we're using
 	PostgresDB string `json:"postgresDB"`
-	// PostgresUser is the name of the secret containing the database username
+	//PostgresUser is the name of the secret containing the database username
 	PostgresUser string `json:"postgresUser"`
-	// PostgresPassword is the name of the secret containing the database password
-	PostgresPassword string `json:"postgresPassword"`
 
-	// RedisHost is the name of the server running redis
+	//RedisHost is the name of the server running redis
 	RedisHost string `json:"redisHost"`
-	// RedisPort is the port on which the redis server is listening (defaults: 6379)
+	//RedisPort is the port on which the redis server is listening (defaults: 6379)
 	RedisPort int `json:"redisPort,omitempty"`
-	// RedisDB is the name of the redis instance we're using (defaults: "0")
+	//RedisDB is the name of the redis instance we're using (defaults: "0")
 	RedisDB string `json:"redisDB,omitempty"`
 }
 
@@ -68,6 +79,18 @@ func (s *Sentry) SetDefaults() {
 		sp.SentryImage = "docker.io/sentry:latest"
 	}
 
+	if sp.SentryEnvironment == "" {
+		sp.SentryEnvironment = "production"
+	}
+
+	if sp.SentryWebReplicas == 0 {
+		sp.SentryWebReplicas = 2
+	}
+
+	if sp.SentryWorkers == 0 {
+		sp.SentryWorkers = 3
+	}
+
 	if sp.PostgresPort == 0 {
 		sp.PostgresPort = 5432
 	}
@@ -78,6 +101,22 @@ func (s *Sentry) SetDefaults() {
 
 	if sp.RedisDB == "" {
 		sp.RedisDB = "0"
+	}
+
+	if sp.PostgresPasswordKey == "" {
+		sp.PostgresPasswordKey = "SENTRY_DB_PASSWORD"
+	}
+
+	if sp.SentrySecretKeyKey == "" {
+		sp.SentrySecretKeyKey = "SENTRY_SECRET_KEY"
+	}
+
+	if sp.SentrySuperUserEmailKey == "" {
+		sp.SentrySuperUserEmailKey = "SENTRY_SU_EMAIL"
+	}
+
+	if sp.SentrySuperUserPasswordKey == "" {
+		sp.SentrySuperUserPasswordKey = "SENTRY_SU_PASSWORD"
 	}
 }
 

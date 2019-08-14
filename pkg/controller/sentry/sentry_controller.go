@@ -3,17 +3,20 @@ package sentry
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
+	"github.com/go-logr/logr"
 	v1alpha1 "github.com/sd-hackday-sentry/sentry-operator/pkg/apis/sentry/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -21,15 +24,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-var log = logf.Log.WithName("controller_sentry")
+var log = logf.Log.WithName("sentry")
 
-/**
-* USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
-* business logic.  Delete these comments after modifying this file.*
- */
-
-// Add creates a new Sentry Controller and adds it to the Manager. The Manager will set fields on the Controller
-// and Start it when the Manager is Started.
+// Add creates a new Sentry Controller and adds it to the Manager. The Manager
+// will set fields on the Controller and Start it when the Manager is Started.
 func Add(mgr manager.Manager) error {
 	return add(mgr, newReconciler(mgr))
 }
@@ -73,25 +71,59 @@ var _ reconcile.Reconciler = &ReconcileSentry{}
 type ReconcileSentry struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+	client  client.Client
+	scheme  *runtime.Scheme
+	logger  logr.Logger
+	secrets map[string]string
+	sentry  *v1alpha1.Sentry
+}
+
+func (r *ReconcileSentry) validateSecrets() error {
+	secretName := r.sentry.Spec.SentrySecret
+	ns := r.sentry.ObjectMeta.Namespace
+	secret := &corev1.Secret{}
+
+	r.logger.Info(fmt.Sprintf("loading secrets from '%s'", secretName))
+
+	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: ns, Name: secretName}, secret)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return fmt.Errorf("the provided secret '%s' was not found in namespace '%s'", secretName, ns)
+		}
+		return err
+	}
+
+	// load and validate required secrets
+	errors := []string{}
+	required := []string{
+		r.sentry.Spec.SentrySecretKeyKey,
+		r.sentry.Spec.PostgresPasswordKey,
+		r.sentry.Spec.SentrySuperUserEmailKey,
+		r.sentry.Spec.SentrySuperUserPasswordKey,
+	}
+	for _, secretKey := range required {
+		if _, ok := secret.Data[secretKey]; !ok {
+			errors = append(errors, fmt.Sprintf("key '%s' is missing", secretKey))
+		}
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf("errors found when loading values from secret '%s': %s", secretName, strings.Join(errors, ", "))
+	}
+
+	return nil
 }
 
 // Reconcile reads that state of the cluster for a Sentry object and makes changes based on the state read
 // and what is in the Sentry.Spec
-// TODO(user): Modify this Reconcile function to implement your Controller logic.  This example creates
-// a Pod as an example
-// Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
-	reqLogger.Info("Reconciling Sentry")
+	r.logger = log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
+	r.logger.Info("Reconciling Sentry")
 
 	// Fetch the Sentry instance
-	sentry := &v1alpha1.Sentry{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, sentry)
-	sentry.SetDefaults()
+	r.sentry = &v1alpha1.Sentry{}
+	err := r.client.Get(context.TODO(), request.NamespacedName, r.sentry)
 
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -104,9 +136,46 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 		return reconcile.Result{}, err
 	}
 
+	r.sentry.SetDefaults()
+	if err := r.validateSecrets(); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	requeue := false
 
-	var allDeployments = map[string]func(*v1alpha1.Sentry, string) *appsv1.Deployment{
+	var allJobs = map[string]func(string) *batchv1.Job{
+		"sentry-upgrader":   r.jobForSentryUpgrader,
+		"sentry-createuser": r.jobForSentryCreateUser,
+	}
+
+	for name, f := range allJobs {
+		job := &batchv1.Job{}
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: r.sentry.Namespace}, job)
+		if err != nil && errors.IsNotFound(err) {
+			requeue = true
+			job = f(name)
+			r.logger.Info("Creating a new Job.", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
+			err = r.client.Create(context.TODO(), job)
+			if err != nil {
+				r.logger.Error(err, "Failed to create new Job.", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
+				return reconcile.Result{}, err
+			}
+			// we want to wait until the job has run before proceeding
+			err = wait.PollUntil(5*time.Second, r.checkIfJobIsCompleted(name), context.TODO().Done())
+			if err != nil {
+				r.logger.Error(err, "Timed out waiting for job.", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
+				return reconcile.Result{}, err
+			}
+		} else if err != nil {
+			r.logger.Error(err, "Failed to get Job.", "Job.Name", name)
+			return reconcile.Result{}, err
+		} else {
+			// TODO: logic to run the upgrader job between versions should be here
+			r.logger.Info("Job already exists, not running again", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
+		}
+	}
+
+	var allDeployments = map[string]func(string) *appsv1.Deployment{
 		"sentry-web-ui": r.deploymentForSentryWebUI,
 		"sentry-worker": r.deploymentForSentryWorker,
 		"sentry-cron":   r.deploymentForSentryCron,
@@ -115,278 +184,43 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 	for name, f := range allDeployments {
 		// Check if the deployment already exists, if not create a new one
 		found := &appsv1.Deployment{}
-		err = r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: sentry.Namespace}, found)
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: r.sentry.Namespace}, found)
 		if err != nil && errors.IsNotFound(err) {
 			requeue = true
-			var dep *appsv1.Deployment = f(sentry, name)
-			reqLogger.Info("Creating a new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+			var dep *appsv1.Deployment = f(name)
+			r.logger.Info("Creating a new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
 			err = r.client.Create(context.TODO(), dep)
 			if err != nil {
-				reqLogger.Error(err, "Failed to create new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+				r.logger.Error(err, "Failed to create new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
 				return reconcile.Result{}, err
 			}
 		} else if err != nil {
-			reqLogger.Error(err, "Failed to get Deployment.", "Deployment.Name", name)
+			r.logger.Error(err, "Failed to get Deployment.", "Deployment.Name", name)
 			return reconcile.Result{}, err
 		} else {
-			reqLogger.Info("Deployment already exists", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
+			r.logger.Info("Deployment already exists", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
 		}
 	}
 
+	//expose the web service
+	found := &corev1.Service{}
+	name := "sentry-web-ui"
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: r.sentry.Namespace}, found)
+	if err != nil && errors.IsNotFound(err) {
+		requeue = true
+		svc := r.serviceForSentryWebUI(name)
+		r.logger.Info("Creating a new Service.", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+		err = r.client.Create(context.TODO(), svc)
+		if err != nil {
+			r.logger.Error(err, "Failed to create new Service.", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+			return reconcile.Result{}, err
+		}
+	} else if err != nil {
+		r.logger.Error(err, "Failed to get Service.", "Service.Name", name)
+		return reconcile.Result{}, err
+	} else {
+		r.logger.Info("Service already exists", "Service.Namespace", found.Namespace, "Service.Name", found.Name)
+	}
+
 	return reconcile.Result{Requeue: requeue}, nil
-}
-
-func (r *ReconcileSentry) deploymentForSentryWebUI(m *v1alpha1.Sentry, name string) *appsv1.Deployment {
-	labels := map[string]string{"app": name}
-	var replicas int32 = 1
-	var terminationGracePeriodSeconds int64 = 30
-
-	dep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: m.Namespace,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Image: m.Spec.SentryImage,
-						Name:  name,
-						Args:  []string{"run", "web"},
-						Ports: []corev1.ContainerPort{{
-							ContainerPort: 9000,
-							Name:          name,
-						}},
-						Env: []corev1.EnvVar{
-							{
-								Name:  "SENTRY_SECRET_KEY",
-								Value: "my_secret_here_some_random_hash", // TODO get from config or generate
-							},
-							{
-								Name:  "SENTRY_POSTGRES_HOST",
-								Value: m.Spec.PostgresHost,
-							},
-							{
-								Name:  "SENTRY_POSTGRES_PORT",
-								Value: fmt.Sprintf("%d", m.Spec.PostgresPort),
-							},
-							{
-								Name:  "SENTRY_DB_NAME",
-								Value: m.Spec.PostgresDB,
-							},
-							{
-								Name:  "SENTRY_DB_USER",
-								Value: m.Spec.PostgresUser,
-							},
-							{
-								Name:  "SENTRY_DB_PASSWORD",
-								Value: m.Spec.PostgresPassword,
-							},
-							{
-								Name:  "SENTRY_REDIS_HOST",
-								Value: m.Spec.RedisHost,
-							},
-							{
-								Name:  "SENTRY_REDIS_PORT",
-								Value: fmt.Sprintf("%d", m.Spec.RedisPort),
-							},
-							{
-								Name:  "SENTRY_REDIS_DB",
-								Value: m.Spec.RedisDB,
-							},
-							{
-								Name:  "SENTRY_USE_SSL",
-								Value: "true", // TODO get from config?
-							},
-						},
-						ImagePullPolicy: corev1.PullAlways,
-					}},
-					RestartPolicy:                 corev1.RestartPolicyAlways,
-					TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
-					DNSPolicy:                     corev1.DNSClusterFirst,
-					SchedulerName:                 "default-scheduler",
-				},
-			},
-		},
-	}
-	// Set Memcached instance as the owner and controller
-	controllerutil.SetControllerReference(m, dep, r.scheme)
-	return dep
-}
-
-func (r *ReconcileSentry) deploymentForSentryWorker(m *v1alpha1.Sentry, name string) *appsv1.Deployment {
-	labels := map[string]string{"app": name}
-	var replicas int32 = 1
-	var terminationGracePeriodSeconds int64 = 30
-
-	dep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: m.Namespace,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Image: m.Spec.SentryImage,
-						Name:  name,
-						Args:  []string{"run", "worker"},
-						Ports: []corev1.ContainerPort{{
-							ContainerPort: 9000,
-							Name:          name,
-						}},
-						Env: []corev1.EnvVar{
-							{
-								Name:  "SENTRY_SECRET_KEY",
-								Value: "my_secret_here_some_random_hash", // TODO get from config or generate
-							},
-							{
-								Name:  "SENTRY_POSTGRES_HOST",
-								Value: m.Spec.PostgresHost,
-							},
-							{
-								Name:  "SENTRY_POSTGRES_PORT",
-								Value: fmt.Sprintf("%d", m.Spec.PostgresPort),
-							},
-							{
-								Name:  "SENTRY_DB_NAME",
-								Value: m.Spec.PostgresDB,
-							},
-							{
-								Name:  "SENTRY_DB_USER",
-								Value: m.Spec.PostgresUser,
-							},
-							{
-								Name:  "SENTRY_DB_PASSWORD",
-								Value: m.Spec.PostgresPassword,
-							},
-							{
-								Name:  "SENTRY_REDIS_HOST",
-								Value: m.Spec.RedisHost,
-							},
-							{
-								Name:  "SENTRY_REDIS_PORT",
-								Value: fmt.Sprintf("%d", m.Spec.RedisPort),
-							},
-							{
-								Name:  "SENTRY_REDIS_DB",
-								Value: m.Spec.RedisDB,
-							},
-							{
-								Name:  "C_FORCE_ROOT",
-								Value: "true", // TODO get from config
-							},
-						},
-						ImagePullPolicy: corev1.PullAlways,
-					}},
-					RestartPolicy:                 corev1.RestartPolicyAlways,
-					TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
-					DNSPolicy:                     corev1.DNSClusterFirst,
-					SchedulerName:                 "default-scheduler",
-				},
-			},
-		},
-	}
-	// Set Memcached instance as the owner and controller
-	controllerutil.SetControllerReference(m, dep, r.scheme)
-	return dep
-}
-
-func (r *ReconcileSentry) deploymentForSentryCron(m *v1alpha1.Sentry, name string) *appsv1.Deployment {
-	labels := map[string]string{"app": name}
-	var replicas int32 = 1
-	var terminationGracePeriodSeconds int64 = 30
-
-	dep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: m.Namespace,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Image: m.Spec.SentryImage,
-						Name:  name,
-						Args:  []string{"run", "cron"},
-						Ports: []corev1.ContainerPort{{
-							ContainerPort: 9000,
-							Name:          name,
-						}},
-						Env: []corev1.EnvVar{
-							{
-								Name:  "SENTRY_SECRET_KEY",
-								Value: "my_secret_here_some_random_hash", // TODO get from config or generate
-							},
-							{
-								Name:  "SENTRY_POSTGRES_HOST",
-								Value: m.Spec.PostgresHost,
-							},
-							{
-								Name:  "SENTRY_POSTGRES_PORT",
-								Value: fmt.Sprintf("%d", m.Spec.PostgresPort),
-							},
-							{
-								Name:  "SENTRY_DB_NAME",
-								Value: m.Spec.PostgresDB,
-							},
-							{
-								Name:  "SENTRY_DB_USER",
-								Value: m.Spec.PostgresUser,
-							},
-							{
-								Name:  "SENTRY_DB_PASSWORD",
-								Value: m.Spec.PostgresPassword,
-							},
-							{
-								Name:  "SENTRY_REDIS_HOST",
-								Value: m.Spec.RedisHost,
-							},
-							{
-								Name:  "SENTRY_REDIS_PORT",
-								Value: fmt.Sprintf("%d", m.Spec.RedisPort),
-							},
-							{
-								Name:  "SENTRY_REDIS_DB",
-								Value: m.Spec.RedisDB,
-							},
-							{
-								Name:  "C_FORCE_ROOT",
-								Value: "true", // TODO get from config
-							},
-						},
-						ImagePullPolicy: corev1.PullAlways,
-					}},
-					RestartPolicy:                 corev1.RestartPolicyAlways,
-					TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
-					DNSPolicy:                     corev1.DNSClusterFirst,
-					SchedulerName:                 "default-scheduler",
-				},
-			},
-		},
-	}
-	// Set Memcached instance as the owner and controller
-	controllerutil.SetControllerReference(m, dep, r.scheme)
-	return dep
 }

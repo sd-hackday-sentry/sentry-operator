@@ -73,6 +73,62 @@ func schema_pkg_apis_sentry_v1alpha1_SentrySpec(ref common.ReferenceCallback) co
 							Format:      "",
 						},
 					},
+					"sentryWebReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SentryWebReplicas is the number of web workers to spawn (defaults: 2)",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"sentryWorkers": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SentryWorkers is the number of async workers to spawn (defaults: 3)",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"sentryEnvironment": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SentryEnvironment is the environment this sentry cluster belongs to (defaults: production)",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"sentrySecret": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SentrySecret is the secret holding the sentry-specific secret config values",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"sentrySecretKeyKey": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SentrySecretKeyKey is the key inside the sentry secret holding the salt hash string for cryptography (defaults: SENTRY_SECRET_KEY)",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"postgresPasswordKey": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PostgresPasswordKey is the key inside the sentry secret holding the password to connect to the database (defaults: SENTRY_DB_PASSWORD)",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"sentrySuperUserEmailKey": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SentrySuperUserEmailKey is the key inside the sentry secret holding the superuser's email address (defaults: \"SENTRY_SU_EMAIL\")",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"sentrySuperUserPasswordKey": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SentrySuperUserPasswordKey is the key inside the sentry secret holding the superuser's password (defaults: \"SENTRY_SU_PASSWORD\")",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"postgresHost": {
 						SchemaProps: spec.SchemaProps{
 							Description: "PostgresHost is the name of server running postgres",
@@ -101,13 +157,6 @@ func schema_pkg_apis_sentry_v1alpha1_SentrySpec(ref common.ReferenceCallback) co
 							Format:      "",
 						},
 					},
-					"postgresPassword": {
-						SchemaProps: spec.SchemaProps{
-							Description: "PostgresPassword is the name of the secret containing the database password",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
 					"redisHost": {
 						SchemaProps: spec.SchemaProps{
 							Description: "RedisHost is the name of the server running redis",
@@ -130,7 +179,7 @@ func schema_pkg_apis_sentry_v1alpha1_SentrySpec(ref common.ReferenceCallback) co
 						},
 					},
 				},
-				Required: []string{"postgresHost", "postgresDB", "postgresUser", "postgresPassword", "redisHost"},
+				Required: []string{"sentrySecret", "postgresHost", "postgresDB", "postgresUser", "redisHost"},
 			},
 		},
 		Dependencies: []string{},
