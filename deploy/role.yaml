@@ -19,7 +19,9 @@ rules:
   - '*'
 - apiGroups:
   - apps
+  - batch
   resources:
+  - jobs
   - deployments
   - daemonsets
   - replicasets
