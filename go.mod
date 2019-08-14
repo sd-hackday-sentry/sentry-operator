@@ -2,10 +2,11 @@ module github.com/sd-hackday-sentry/sentry-operator
 
 require (
 	github.com/NYTimes/gziphandler v1.0.1 // indirect
-	github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6 // indirect
+	github.com/evanphx/json-patch v4.2.0+incompatible // indirect
+	github.com/go-logr/logr v0.1.0
 	github.com/operator-framework/operator-sdk v0.9.1-0.20190729152335-7a35cfc9a7cf
 	github.com/spf13/pflag v1.0.3
-	golang.org/x/arch v0.0.0-20190312162104-788fe5ffcd8c // indirect
+	golang.org/x/net v0.0.0-20190514140710-3ec191127204 // indirect
 	k8s.io/api v0.0.0-20190612125737-db0771252981
 	k8s.io/apimachinery v0.0.0-20190612125636-6a5db36e93ad
 	k8s.io/client-go v11.0.0+incompatible
