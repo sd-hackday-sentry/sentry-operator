@@ -3,12 +3,8 @@ kind: Sentry
 metadata:
   name: example-sentry
 spec:
-  sentryVersion: latest
-  postgresHost: replace_me
-  postgresPort: 5432
-  postgresDB: sampledb
-  postgresUser: postgres
-  postgresPassword: replace_me
-  redisHost: replace_me
-  redisPort: 6379
-  redisDB: redis
+  postgresHost: postgres
+  postgresDB: sentry
+  postgresUser: root
+  redisHost: redis
+  sentrySecret: sentry

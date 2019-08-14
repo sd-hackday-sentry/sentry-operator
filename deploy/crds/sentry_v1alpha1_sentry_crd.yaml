@@ -35,9 +35,9 @@ spec:
             postgresHost:
               description: PostgresHost is the name of server running postgres
               type: string
-            postgresPassword:
-              description: PostgresPassword is the name of the secret containing the
-                database password
+            postgresPasswordKey:
+              description: 'PostgresPasswordKey is the key inside the sentry secret
+                holding the password to connect to the database (defaults: SENTRY_DB_PASSWORD)'
               type: string
             postgresPort:
               description: 'PostgresPort is the port on which the database server
@@ -60,15 +60,45 @@ spec:
                 (defaults: 6379)'
               format: int64
               type: integer
+            sentryEnvironment:
+              description: 'SentryEnvironment is the environment this sentry cluster
+                belongs to (defaults: production)'
+              type: string
             sentryImage:
               description: 'SentryImage is the image of sentry we are running (defaults:
                 docker.io/sentry:latest)'
               type: string
+            sentrySecret:
+              description: SentrySecret is the secret holding the sentry-specific
+                secret config values
+              type: string
+            sentrySecretKeyKey:
+              description: 'SentrySecretKeyKey is the key inside the sentry secret
+                holding the salt hash string for cryptography (defaults: SENTRY_SECRET_KEY)'
+              type: string
+            sentrySuperUserEmailKey:
+              description: 'SentrySuperUserEmailKey is the key inside the sentry secret
+                holding the superuser''s email address (defaults: "SENTRY_SU_EMAIL")'
+              type: string
+            sentrySuperUserPasswordKey:
+              description: 'SentrySuperUserPasswordKey is the key inside the sentry
+                secret holding the superuser''s password (defaults: "SENTRY_SU_PASSWORD")'
+              type: string
+            sentryWebReplicas:
+              description: 'SentryWebReplicas is the number of web workers to spawn
+                (defaults: 2)'
+              format: int64
+              type: integer
+            sentryWorkers:
+              description: 'SentryWorkers is the number of async workers to spawn
+                (defaults: 3)'
+              format: int64
+              type: integer
           required:
+          - sentrySecret
           - postgresHost
           - postgresDB
           - postgresUser
-          - postgresPassword
           - redisHost
           type: object
         status:
