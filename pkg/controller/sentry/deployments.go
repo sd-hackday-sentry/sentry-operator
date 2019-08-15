@@ -11,7 +11,8 @@ import (
 )
 
 // deployment for the sentry web process
-func (r *ReconcileSentry) deploymentForSentryWebUI(name string) *appsv1.Deployment {
+func (r *ReconcileSentry) deploymentForSentryWebUI() *appsv1.Deployment {
+	name := "sentry-web-ui"
 	replicas := int32(r.sentry.Spec.SentryWebReplicas)
 	sentryPort := int32(9000)
 
@@ -71,7 +72,8 @@ func (r *ReconcileSentry) deploymentForSentryWebUI(name string) *appsv1.Deployme
 }
 
 // deployment for the sentry worker process
-func (r *ReconcileSentry) deploymentForSentryWorker(name string) *appsv1.Deployment {
+func (r *ReconcileSentry) deploymentForSentryWorker() *appsv1.Deployment {
+	name := "sentry-worker"
 	replicas := int32(r.sentry.Spec.SentryWorkers)
 	opts := templateOpts{
 		Name: name,
@@ -100,7 +102,8 @@ func (r *ReconcileSentry) deploymentForSentryWorker(name string) *appsv1.Deploym
 }
 
 // deployment for the sentry cron process
-func (r *ReconcileSentry) deploymentForSentryCron(name string) *appsv1.Deployment {
+func (r *ReconcileSentry) deploymentForSentryCron() *appsv1.Deployment {
+	name := "sentry-cron"
 	replicas := int32(1)
 	opts := templateOpts{
 		Name: name,

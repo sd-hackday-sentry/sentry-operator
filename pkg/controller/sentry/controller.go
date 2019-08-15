@@ -143,51 +143,51 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 
 	requeue := false
 
-	var allJobs = map[string]func(string) *batchv1.Job{
-		"sentry-upgrader":   r.jobForSentryUpgrader,
-		"sentry-createuser": r.jobForSentryCreateUser,
+	// these need to be executed in order, maps' order isn't guaranteed that's why we use a slice
+	allJobs := []func() *batchv1.Job{
+		r.jobForSentryUpgrader,
+		r.jobForSentryCreateUser,
 	}
 
-	for name, f := range allJobs {
-		job := &batchv1.Job{}
-		err = r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: r.sentry.Namespace}, job)
+	for _, f := range allJobs {
+		job := f()
+		found := &batchv1.Job{}
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: job.Name, Namespace: r.sentry.Namespace}, found)
 		if err != nil && errors.IsNotFound(err) {
 			requeue = true
-			job = f(name)
 			r.logger.Info("Creating a new Job.", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
-			err = r.client.Create(context.TODO(), job)
+			err := r.client.Create(context.TODO(), job)
 			if err != nil {
-				r.logger.Error(err, "Failed to create new Job.", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
+				r.logger.Error(err, "Failed to create Job.", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
 				return reconcile.Result{}, err
 			}
 			// we want to wait until the job has run before proceeding
-			err = wait.PollUntil(5*time.Second, r.checkIfJobIsCompleted(name), context.TODO().Done())
+			err = wait.PollUntil(5*time.Second, r.checkIfJobIsCompleted(job.Name), context.TODO().Done())
 			if err != nil {
-				r.logger.Error(err, "Timed out waiting for job.", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
+				r.logger.Error(err, "Timed out waiting for job to complete.", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
 				return reconcile.Result{}, err
 			}
 		} else if err != nil {
-			r.logger.Error(err, "Failed to get Job.", "Job.Name", name)
+			r.logger.Error(err, "Failed to get Job.", "Job.Name", job.Name)
 			return reconcile.Result{}, err
 		} else {
-			// TODO: logic to run the upgrader job between versions should be here
-			r.logger.Info("Job already exists, not running again", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
+			r.logger.Info("Job already exists, nothing to do.", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
 		}
 	}
 
-	var allDeployments = map[string]func(string) *appsv1.Deployment{
-		"sentry-web-ui": r.deploymentForSentryWebUI,
-		"sentry-worker": r.deploymentForSentryWorker,
-		"sentry-cron":   r.deploymentForSentryCron,
+	allDeployments := []func() *appsv1.Deployment{
+		r.deploymentForSentryWebUI,
+		r.deploymentForSentryWorker,
+		r.deploymentForSentryCron,
 	}
 
-	for name, f := range allDeployments {
+	for _, f := range allDeployments {
+		dep := f()
 		// Check if the deployment already exists, if not create a new one
 		found := &appsv1.Deployment{}
-		err = r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: r.sentry.Namespace}, found)
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: dep.Name, Namespace: dep.Namespace}, found)
 		if err != nil && errors.IsNotFound(err) {
 			requeue = true
-			var dep *appsv1.Deployment = f(name)
 			r.logger.Info("Creating a new Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
 			err = r.client.Create(context.TODO(), dep)
 			if err != nil {
@@ -195,31 +195,43 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 				return reconcile.Result{}, err
 			}
 		} else if err != nil {
-			r.logger.Error(err, "Failed to get Deployment.", "Deployment.Name", name)
+			r.logger.Error(err, "Failed to get Deployment.", "Deployment.Name", dep.Name)
 			return reconcile.Result{}, err
 		} else {
-			r.logger.Info("Deployment already exists", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
+			r.logger.Info("Deployment already exists, updating to reconcile", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
+			requeue = true
+			err = r.client.Update(context.TODO(), dep)
+			if err != nil {
+				r.logger.Error(err, "Failed to update Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+				return reconcile.Result{}, err
+			}
 		}
 	}
 
-	//expose the web service
-	found := &corev1.Service{}
-	name := "sentry-web-ui"
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: r.sentry.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		requeue = true
-		svc := r.serviceForSentryWebUI(name)
-		r.logger.Info("Creating a new Service.", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
-		err = r.client.Create(context.TODO(), svc)
-		if err != nil {
-			r.logger.Error(err, "Failed to create new Service.", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+	// only have one service right now but eh.
+	allServices := []func() *corev1.Service{
+		r.serviceForSentryWebUI,
+	}
+
+	//expose the sentry services
+	for _, f := range allServices {
+		found := &corev1.Service{}
+		svc := f()
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: svc.Name, Namespace: svc.Namespace}, found)
+		if err != nil && errors.IsNotFound(err) {
+			requeue = true
+			r.logger.Info("Creating a new Service.", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+			err = r.client.Create(context.TODO(), svc)
+			if err != nil {
+				r.logger.Error(err, "Failed to create new Service.", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+				return reconcile.Result{}, err
+			}
+		} else if err != nil {
+			r.logger.Error(err, "Failed to get Service.", "Service.Name", svc.Name)
 			return reconcile.Result{}, err
+		} else {
+			r.logger.Info("Service already exists, nothing else to do.", "Service.Namespace", found.Namespace, "Service.Name", found.Name)
 		}
-	} else if err != nil {
-		r.logger.Error(err, "Failed to get Service.", "Service.Name", name)
-		return reconcile.Result{}, err
-	} else {
-		r.logger.Info("Service already exists", "Service.Namespace", found.Namespace, "Service.Name", found.Name)
 	}
 
 	return reconcile.Result{Requeue: requeue}, nil
