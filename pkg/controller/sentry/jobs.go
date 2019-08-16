@@ -11,7 +11,8 @@ import (
 var onFailure corev1.RestartPolicy = corev1.RestartPolicyOnFailure
 
 // job for the sentry upgrade process
-func (r *ReconcileSentry) jobForSentryUpgrader(name string) *batchv1.Job {
+func (r *ReconcileSentry) jobForSentryUpgrader() *batchv1.Job {
+	name := "sentry-upgrader"
 	opts := templateOpts{
 		Name: name,
 		Args: []string{
@@ -35,7 +36,8 @@ func (r *ReconcileSentry) jobForSentryUpgrader(name string) *batchv1.Job {
 }
 
 // job for the sentry createuser process
-func (r *ReconcileSentry) jobForSentryCreateUser(name string) *batchv1.Job {
+func (r *ReconcileSentry) jobForSentryCreateUser() *batchv1.Job {
+	name := "sentry-createuser"
 	opts := templateOpts{
 		Name: name,
 		Args: []string{

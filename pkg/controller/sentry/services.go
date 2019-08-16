@@ -6,7 +6,8 @@ import (
 )
 
 // service for the sentry web process
-func (r *ReconcileSentry) serviceForSentryWebUI(name string) *corev1.Service {
+func (r *ReconcileSentry) serviceForSentryWebUI() *corev1.Service {
+	name := "sentry-web-ui"
 	labels := map[string]string{"app": name}
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
