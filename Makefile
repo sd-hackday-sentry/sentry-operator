@@ -1,14 +1,14 @@
 SHELL := /bin/bash
-GITCOMMIT=$(shell git rev-parse --short HEAD)$(shell [[ $$(git status --porcelain) = "" ]] || echo -dirty)
-LDFLAGS="-X main.gitCommit=$(GITCOMMIT)"
-NAMESPACE="$(USER)-dev"
+GITCOMMIT = $(shell git rev-parse --short HEAD)$(shell [[ $$(git status --porcelain) = "" ]] || echo -dirty)
+LDFLAGS = "-X main.gitCommit=$(GITCOMMIT)"
+NAMESPACE ?= "$(USER)-dev"
 
 OPERATOR_REGISTRY ?= quay.io
 OPERATOR_REPO ?= thekad/sentry-operator
 OPERATOR_IMAGE ?= $(OPERATOR_REGISTRY)/$(OPERATOR_REPO):$(GITCOMMIT)
 OPERATOR_LATEST ?= $(OPERATOR_REGISTRY)/$(OPERATOR_REPO):latest
 
-.PHONY: setup install uninstall generate image push deploy scrub port-forward
+.PHONY: setup install uninstall generate image push deploy scrub port-forward crd run
 
 # local dev setup
 setup:
@@ -41,15 +41,22 @@ image: generate
 push:
 	docker push $(OPERATOR_IMAGE)
 
-# deploy the operator to the k8s cluster
-deploy:
-	@cat deploy/operator.yaml.in | sed -e 's|REPLACE_IMAGE|$(OPERATOR_IMAGE)|g' > deploy/operator.yaml
+# deploy the crd to the cluster
+crd:
 	@kubectl --namespace=$(NAMESPACE) apply --filename=deploy/service_account.yaml
 	@kubectl --namespace=$(NAMESPACE) apply --filename=deploy/role.yaml
 	@kubectl --namespace=$(NAMESPACE) apply --filename=deploy/role_binding.yaml
-	@kubectl --namespace=$(NAMESPACE) apply --filename=deploy/operator.yaml
 	@kubectl --namespace=$(NAMESPACE) apply --filename=deploy/crds/sentry_v1alpha1_sentry_crd.yaml
 	@kubectl --namespace=$(NAMESPACE) apply --filename=deploy/crds/sentry_v1alpha1_sentry_cr.yaml
+
+# run the operator locally
+run: crd
+	@GO111MODULE=on operator-sdk up local --namespace $(NAMESPACE)
+
+# deploy the operator to the k8s cluster
+deploy: crd
+	@cat deploy/operator.yaml.in | sed -e 's|REPLACE_IMAGE|$(OPERATOR_IMAGE)|g' > deploy/operator.yaml
+	@kubectl --namespace=$(NAMESPACE) apply --filename=deploy/operator.yaml
 
 # forward the port to be accessed locally
 port-forward:
@@ -57,10 +64,9 @@ port-forward:
 
 # remove all traces of the operator from the k8s cluster
 scrub:
-	@cat deploy/operator.yaml.in | sed -e 's|REPLACE_IMAGE|$(OPERATOR_IMAGE)|g' > deploy/operator.yaml
-	@kubectl --namespace=$(NAMESPACE) delete --filename=deploy/crds/sentry_v1alpha1_sentry_cr.yaml
-	@kubectl --namespace=$(NAMESPACE) delete --filename=deploy/crds/sentry_v1alpha1_sentry_crd.yaml
-	@kubectl --namespace=$(NAMESPACE) delete --filename=deploy/operator.yaml
-	@kubectl --namespace=$(NAMESPACE) delete --filename=deploy/role_binding.yaml
-	@kubectl --namespace=$(NAMESPACE) delete --filename=deploy/role.yaml
-	@kubectl --namespace=$(NAMESPACE) delete --filename=deploy/service_account.yaml
+	@kubectl --namespace=$(NAMESPACE) delete --filename=deploy/operator.yaml --ignore-not-found=true
+	@kubectl --namespace=$(NAMESPACE) delete --filename=deploy/crds/sentry_v1alpha1_sentry_cr.yaml --ignore-not-found=true
+	@kubectl --namespace=$(NAMESPACE) delete --filename=deploy/crds/sentry_v1alpha1_sentry_crd.yaml --ignore-not-found=true
+	@kubectl --namespace=$(NAMESPACE) delete --filename=deploy/role_binding.yaml --ignore-not-found=true
+	@kubectl --namespace=$(NAMESPACE) delete --filename=deploy/role.yaml --ignore-not-found=true
+	@kubectl --namespace=$(NAMESPACE) delete --filename=deploy/service_account.yaml --ignore-not-found=true
