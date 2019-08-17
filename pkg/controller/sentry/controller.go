@@ -161,11 +161,13 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 				r.logger.Error(err, "Failed to create Job.", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
 				return reconcile.Result{}, err
 			}
-			// we want to wait until the job has run before proceeding
-			err = wait.PollUntil(5*time.Second, r.checkIfJobIsCompleted(job.Name), context.TODO().Done())
-			if err != nil {
-				r.logger.Error(err, "Timed out waiting for job to complete.", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
-				return reconcile.Result{}, err
+			// we want to wait until the upgrader job has run before proceeding
+			if job.Name == "sentry-upgrader" {
+				err = wait.PollUntil(5*time.Second, r.checkIfJobIsCompleted(job.Name), context.TODO().Done())
+				if err != nil {
+					r.logger.Error(err, "Timed out waiting for job to complete.", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
+					return reconcile.Result{}, err
+				}
 			}
 		} else if err != nil {
 			r.logger.Error(err, "Failed to get Job.", "Job.Name", job.Name)
@@ -199,7 +201,6 @@ func (r *ReconcileSentry) Reconcile(request reconcile.Request) (reconcile.Result
 			return reconcile.Result{}, err
 		} else {
 			r.logger.Info("Deployment already exists, updating to reconcile", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
-			requeue = true
 			err = r.client.Update(context.TODO(), dep)
 			if err != nil {
 				r.logger.Error(err, "Failed to update Deployment.", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)

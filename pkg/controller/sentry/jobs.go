@@ -7,19 +7,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-// all jobs should be restarted on failure only
-var onFailure corev1.RestartPolicy = corev1.RestartPolicyOnFailure
-
 // job for the sentry upgrade process
 func (r *ReconcileSentry) jobForSentryUpgrader() *batchv1.Job {
 	name := "sentry-upgrader"
+	restartPolicy := corev1.RestartPolicyOnFailure
 	opts := templateOpts{
 		Name: name,
 		Args: []string{
 			"upgrade",
 			"--noinput",
 		},
-		RestartPolicy: &onFailure,
+		RestartPolicy: &restartPolicy,
 	}
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -38,6 +36,9 @@ func (r *ReconcileSentry) jobForSentryUpgrader() *batchv1.Job {
 // job for the sentry createuser process
 func (r *ReconcileSentry) jobForSentryCreateUser() *batchv1.Job {
 	name := "sentry-createuser"
+	restartPolicy := corev1.RestartPolicyNever
+	one := int32(1)
+	zero := int32(0)
 	opts := templateOpts{
 		Name: name,
 		Args: []string{
@@ -73,7 +74,7 @@ func (r *ReconcileSentry) jobForSentryCreateUser() *batchv1.Job {
 				},
 			},
 		},
-		RestartPolicy: &onFailure,
+		RestartPolicy: &restartPolicy,
 	}
 	jobSpec := r.getCommonPodTemplate(opts)
 	job := &batchv1.Job{
@@ -82,7 +83,10 @@ func (r *ReconcileSentry) jobForSentryCreateUser() *batchv1.Job {
 			Namespace: r.sentry.Namespace,
 		},
 		Spec: batchv1.JobSpec{
-			Template: jobSpec,
+			Template:     jobSpec,
+			Parallelism:  &one,
+			Completions:  &one,
+			BackoffLimit: &zero,
 		},
 	}
 
